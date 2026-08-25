@@ -1,5 +1,16 @@
 # PortfolioLab
 
+**Want to open the site?** Paste this into your terminal (inside this project folder):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+It'll open automatically in your browser.
+
 A little Streamlit app I built to make sense of investing basics — pick a risk level, punch in an amount, and see how that hypothetical portfolio would've actually done over the last 5 years using real market data.
 
 Started as a way to actually understand what "diversification" and "risk" mean with real numbers instead of just reading about it.
