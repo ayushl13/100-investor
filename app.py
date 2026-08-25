@@ -1,6 +1,8 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
+import altair as alt
 
 
 # =========================================================
@@ -18,6 +20,303 @@ st.set_page_config(
 # =========================================================
 # CUSTOM STYLING
 # =========================================================
+
+KINETIC_GRID_JS = r"""
+<style>
+html, body {
+    background: #161618 !important;
+    margin: 0;
+    overflow: hidden;
+}
+</style>
+<canvas id="kinetic-grid-canvas-local"></canvas>
+<script>
+(function () {
+    var CELL_SIZE = 55;
+    var INFLUENCE_RADIUS = 320;
+    var MAX_WARP = 22;
+    var DOT_SPACING = 28;
+    var LERP_SPEED = 0.12;
+    var LINE_BASE = { r: 255, g: 255, b: 255, a: 0.13 };
+    var NODE_BASE_RADIUS = 1.8;
+    var NODE_ACTIVE_RADIUS = 3.2;
+
+    var theme = {
+        bg: '#161618',
+        lineActive: { r: 74, g: 158, b: 255, a: 0.9 },
+        nodeActive: { r: 74, g: 158, b: 255, a: 1.0 },
+        glow: '74,158,255',
+        ripple: '100,180,255'
+    };
+
+    function lerpN(a, b, t) { return a + (b - a) * t; }
+    function lerpColor(base, active, t) {
+        var r = Math.round(lerpN(base.r, active.r, t));
+        var g = Math.round(lerpN(base.g, active.g, t));
+        var b = Math.round(lerpN(base.b, active.b, t));
+        var a = lerpN(base.a, active.a, t);
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + a.toFixed(3) + ')';
+    }
+
+    // ---- Try to reach the real top-level page for genuine cursor tracking.
+    // Falls back to a self-contained ambient animation if the browser blocks it.
+    var win = null, doc = null, canvas = null, REAL_CURSOR = false;
+
+    try {
+        var testWin = window.parent;
+        var testDoc = testWin.document;
+        var probe = testDoc.body.nodeName;  // throws if cross-origin blocked
+
+        if (!testWin.__kineticGridInjected) {
+            testWin.__kineticGridInjected = true;
+            win = testWin;
+            doc = testDoc;
+
+            canvas = doc.createElement('canvas');
+            canvas.id = 'kinetic-grid-canvas';
+            canvas.style.position = 'fixed';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100vw';
+            canvas.style.height = '100vh';
+            canvas.style.zIndex = '0';
+            canvas.style.pointerEvents = 'none';
+            doc.body.insertBefore(canvas, doc.body.firstChild);
+
+            REAL_CURSOR = true;
+        }
+    } catch (err) {
+        REAL_CURSOR = false;
+    }
+
+    if (!REAL_CURSOR) {
+        win = window;
+        doc = document;
+        canvas = doc.getElementById('kinetic-grid-canvas-local');
+    }
+
+    if (!canvas) { return; }
+    var ctx = canvas.getContext('2d');
+
+    var mouse = { x: -9999, y: -9999 };
+    var targetMouse = { x: -9999, y: -9999 };
+    var ripples = [];
+    var size = { w: 0, h: 0 };
+    var startTime = performance.now();
+    var nextAutoRipple = 2000;
+
+    function setSize() {
+        size.w = win.innerWidth;
+        size.h = win.innerHeight;
+        canvas.width = size.w;
+        canvas.height = size.h;
+    }
+    setSize();
+    win.addEventListener('resize', setSize);
+
+    if (REAL_CURSOR) {
+        win.addEventListener('mousemove', function (e) {
+            targetMouse.x = e.clientX;
+            targetMouse.y = e.clientY;
+        });
+        win.addEventListener('click', function (e) {
+            ripples.push({ x: e.clientX, y: e.clientY, radius: 0, opacity: 1, born: performance.now() });
+        });
+    }
+
+    function getWarpedPoint(gx, gy, col, row, cols, rows) {
+        var edgeMargin = 1.5;
+        var colPin = Math.min(col / edgeMargin, (cols - 1 - col) / edgeMargin, 1);
+        var rowPin = Math.min(row / edgeMargin, (rows - 1 - row) / edgeMargin, 1);
+        var pinFactor = colPin * colPin * rowPin * rowPin;
+
+        var dx = gx - mouse.x;
+        var dy = gy - mouse.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var proximity = Math.max(0, 1 - dist / INFLUENCE_RADIUS) * pinFactor;
+
+        var rx = 0, ry = 0;
+        for (var i = 0; i < ripples.length; i++) {
+            var r = ripples[i];
+            var rdx = gx - r.x;
+            var rdy = gy - r.y;
+            var rdist = Math.sqrt(rdx * rdx + rdy * rdy);
+            var waveWidth = 55;
+            var diff = rdist - r.radius;
+            if (Math.abs(diff) < waveWidth) {
+                var strength = (1 - Math.abs(diff) / waveWidth) * r.opacity * 18 * pinFactor;
+                var angle = Math.atan2(rdy, rdx);
+                var sign = diff < 0 ? -1 : 1;
+                rx += Math.cos(angle) * strength * sign * -1;
+                ry += Math.sin(angle) * strength * sign * -1;
+            }
+        }
+
+        if (dist < INFLUENCE_RADIUS && dist > 0 && pinFactor > 0) {
+            var t = dist / INFLUENCE_RADIUS;
+            var eased = t < 0.01 ? 0 : (1 - t) * (1 - t) * Math.min(1, dist / 60);
+            var warpAmt = eased * MAX_WARP * pinFactor;
+            var angle2 = Math.atan2(dy, dx);
+            return {
+                pt: { x: gx - Math.cos(angle2) * warpAmt + rx, y: gy - Math.sin(angle2) * warpAmt + ry },
+                proximity: proximity
+            };
+        }
+        return { pt: { x: gx + rx, y: gy + ry }, proximity: proximity };
+    }
+
+    function draw(now) {
+        var W = size.w, H = size.h;
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = theme.bg;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for (var x = DOT_SPACING / 2; x < W; x += DOT_SPACING) {
+            for (var y = DOT_SPACING / 2; y < H; y += DOT_SPACING) {
+                ctx.beginPath();
+                ctx.arc(x, y, 0.7, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        if (REAL_CURSOR) {
+            mouse.x = lerpN(mouse.x, targetMouse.x, LERP_SPEED);
+            mouse.y = lerpN(mouse.y, targetMouse.y, LERP_SPEED);
+        } else {
+            var elapsed = (now - startTime) / 1000;
+            mouse.x = W / 2 + Math.sin(elapsed * 0.25) * (W * 0.35);
+            mouse.y = H / 2 + Math.sin(elapsed * 0.4) * (H * 0.3);
+
+            if (now > nextAutoRipple) {
+                ripples.push({ x: mouse.x, y: mouse.y, radius: 0, opacity: 1, born: now });
+                nextAutoRipple = now + 3200 + Math.random() * 1800;
+            }
+        }
+
+        for (var i = ripples.length - 1; i >= 0; i--) {
+            var r = ripples[i];
+            var age = (now - r.born) / 1000;
+            r.radius = Math.max(0, age * 400);
+            r.opacity = Math.max(0, 1 - age * 1.2);
+            if (r.opacity <= 0) ripples.splice(i, 1);
+        }
+
+        var cols = Math.max(2, Math.ceil(W / CELL_SIZE)) + 1;
+        var rows = Math.max(2, Math.ceil(H / CELL_SIZE)) + 1;
+        var cellW = W / (cols - 1);
+        var cellH = H / (rows - 1);
+
+        var pts = [];
+        var prox = [];
+        for (var row = 0; row < rows; row++) {
+            pts[row] = [];
+            prox[row] = [];
+            for (var col = 0; col < cols; col++) {
+                var res = getWarpedPoint(col * cellW, row * cellH, col, row, cols, rows);
+                pts[row][col] = res.pt;
+                prox[row][col] = res.proximity;
+            }
+        }
+
+        function drawSeg(p1, p2, pr1, pr2) {
+            var avg = (pr1 + pr2) / 2;
+            var t = avg * avg * (3 - 2 * avg);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = lerpColor(LINE_BASE, theme.lineActive, t);
+            ctx.lineWidth = lerpN(0.8, 1.5, t);
+            ctx.stroke();
+        }
+
+        ctx.lineCap = 'butt';
+        for (var row = 0; row < rows; row++)
+            for (var col = 0; col < cols - 1; col++)
+                drawSeg(pts[row][col], pts[row][col + 1], prox[row][col], prox[row][col + 1]);
+        for (var col = 0; col < cols; col++)
+            for (var row = 0; row < rows - 1; row++)
+                drawSeg(pts[row][col], pts[row + 1][col], prox[row][col], prox[row + 1][col]);
+
+        for (var row = 0; row < rows; row++) {
+            for (var col = 0; col < cols; col++) {
+                var p = pts[row][col];
+                var pr = prox[row][col];
+                var t = pr * pr * (3 - 2 * pr);
+                var rad = lerpN(NODE_BASE_RADIUS, NODE_ACTIVE_RADIUS, t);
+
+                if (t > 0.3) {
+                    var glowR = rad + lerpN(0, 6, (t - 0.3) / 0.7);
+                    var grd = ctx.createRadialGradient(p.x, p.y, rad * 0.5, p.x, p.y, glowR);
+                    grd.addColorStop(0, 'rgba(' + theme.glow + ',' + (t * 0.3).toFixed(3) + ')');
+                    grd.addColorStop(1, 'rgba(' + theme.glow + ',0)');
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
+                    ctx.fillStyle = grd;
+                    ctx.fill();
+                }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+                ctx.fillStyle = lerpColor({ r: 255, g: 255, b: 255, a: 0.2 }, theme.nodeActive, t);
+                ctx.fill();
+            }
+        }
+
+        for (var i2 = 0; i2 < ripples.length; i2++) {
+            var rp = ripples[i2];
+            var safeRadius = Math.max(0, rp.radius);
+            ctx.beginPath();
+            ctx.arc(rp.x, rp.y, safeRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(' + theme.ripple + ',' + (rp.opacity * 0.28).toFixed(3) + ')';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+    }
+
+    function animate(now) {
+        draw(now);
+        win.requestAnimationFrame(animate);
+    }
+    win.requestAnimationFrame(animate);
+})();
+</script>
+"""
+
+
+BACKGROUND_CSS = """
+<style>
+iframe {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: -1 !important;
+    pointer-events: none !important;
+    border: none !important;
+}
+html, body {
+    background: #161618 !important;
+}
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+[data-testid="stMain"],
+.stApp {
+    background: transparent !important;
+}
+[data-testid="stSidebar"] {
+    background-color: rgba(30, 30, 34, 0.9) !important;
+}
+</style>
+"""
+
+def render_kinetic_grid_background():
+    st.markdown(BACKGROUND_CSS, unsafe_allow_html=True)
+    components.html(KINETIC_GRID_JS, height=0)
+
+render_kinetic_grid_background()
+
 
 
 # =========================================================
@@ -231,30 +530,194 @@ etf_information = {
         "name": "Vanguard S&P 500 ETF",
         "asset_class": "U.S. Equities",
         "focus": "Large-cap U.S. companies",
-        "role": "Core equity exposure"
+        "role": "Core equity exposure",
+        "description": (
+            "Tracks the S&P 500, giving broad exposure to 500 of the largest "
+            "U.S. companies across nearly every sector. It's often used as a "
+            "core holding because of its low cost and broad diversification."
+        )
     },
 
     "QQQ": {
         "name": "Invesco QQQ",
         "asset_class": "U.S. Equities",
         "focus": "Nasdaq-100 companies",
-        "role": "Growth and technology exposure"
+        "role": "Growth and technology exposure",
+        "description": (
+            "Tracks the Nasdaq-100, which is heavily weighted toward "
+            "technology and other growth-oriented companies. It has "
+            "historically offered higher growth potential alongside "
+            "higher volatility than the broader market."
+        )
     },
 
     "VXUS": {
         "name": "Vanguard Total International Stock ETF",
         "asset_class": "International Equities",
         "focus": "Companies outside the United States",
-        "role": "International diversification"
+        "role": "International diversification",
+        "description": (
+            "Provides exposure to thousands of companies across developed "
+            "and emerging markets outside the U.S., helping diversify a "
+            "portfolio away from U.S.-only risk."
+        )
     },
 
     "BND": {
         "name": "Vanguard Total Bond Market ETF",
         "asset_class": "Fixed Income",
         "focus": "U.S. investment-grade bonds",
-        "role": "Income and portfolio stability"
+        "role": "Income and portfolio stability",
+        "description": (
+            "Holds a broad mix of U.S. investment-grade bonds, providing "
+            "steady income and helping cushion a portfolio during stock "
+            "market downturns."
+        )
     }
 }
+
+
+# =========================================================
+# TICKER DETAIL POPUP
+# =========================================================
+
+TICKER_RANGES = [
+    ("Day", "1d", "5m"),
+    ("Week", "5d", "30m"),
+    ("Month", "1mo", "1d"),
+    ("Year", "1y", "1d"),
+    ("YTD", "ytd", "1d"),
+]
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_ticker_history(ticker, period, interval):
+    return yf.Ticker(ticker).history(period=period, interval=interval)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_ticker_fast_info(ticker):
+    info = yf.Ticker(ticker).fast_info
+    return {
+        "last_price": info.get("lastPrice"),
+        "previous_close": info.get("previousClose"),
+        "day_high": info.get("dayHigh"),
+        "day_low": info.get("dayLow"),
+        "year_high": info.get("yearHigh"),
+        "year_low": info.get("yearLow"),
+        "market_cap": info.get("marketCap"),
+        "volume": info.get("lastVolume"),
+    }
+
+
+@st.dialog("Stock Detail", width="large")
+def ticker_dialog(ticker):
+
+    name = etf_information.get(ticker, {}).get("name", ticker)
+    st.subheader(f"{ticker} — {name}")
+
+    try:
+        stats = fetch_ticker_fast_info(ticker)
+    except Exception:
+        stats = None
+
+    if stats and stats.get("last_price") is not None:
+        last_price = stats["last_price"]
+        prev_close = stats.get("previous_close")
+
+        stat1, stat2, stat3, stat4 = st.columns(4)
+
+        with stat1:
+            if prev_close:
+                change = last_price - prev_close
+                change_pct = (change / prev_close) * 100
+                st.metric(
+                    "Price",
+                    f"${last_price:,.2f}",
+                    f"{change:+.2f} ({change_pct:+.2f}%)"
+                )
+            else:
+                st.metric("Price", f"${last_price:,.2f}")
+
+        with stat2:
+            if stats.get("day_high") and stats.get("day_low"):
+                st.metric("Day Range", f"${stats['day_low']:,.2f} – ${stats['day_high']:,.2f}")
+
+        with stat3:
+            if stats.get("year_high") and stats.get("year_low"):
+                st.metric("52-Week Range", f"${stats['year_low']:,.2f} – ${stats['year_high']:,.2f}")
+
+        with stat4:
+            if stats.get("market_cap"):
+                st.metric("Market Cap", f"${stats['market_cap'] / 1e9:,.1f}B")
+            elif stats.get("volume"):
+                st.metric("Volume", f"{stats['volume']:,.0f}")
+
+        st.divider()
+    else:
+        st.warning("Live stats are temporarily unavailable for this ticker.")
+
+    tabs = st.tabs([label for label, _, _ in TICKER_RANGES])
+
+    for tab, (label, period, interval) in zip(tabs, TICKER_RANGES):
+        with tab:
+            try:
+                hist = fetch_ticker_history(ticker, period, interval)
+            except Exception:
+                hist = None
+
+            if hist is None or hist.empty:
+                st.info("No price data available for this range (market may be closed).")
+                continue
+
+            line_chart_single(hist["Close"], height=300, y_title="Price ($)")
+
+            range_return = (hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1) * 100
+            st.caption(f"{label} change: {range_return:+.2f}%")
+
+    if ticker in etf_information:
+        st.divider()
+        st.caption(etf_information[ticker]["focus"])
+
+
+def ticker_button(ticker, key_suffix, label=None):
+    if st.button(label or ticker, key=f"tkr_{ticker}_{key_suffix}", type="tertiary"):
+        ticker_dialog(ticker)
+
+
+def line_chart_single(series, height=350, y_title="Value ($)"):
+    df = pd.DataFrame({"Date": series.index, "Value": series.values})
+    chart = (
+        alt.Chart(df)
+        .mark_line(color="#4A9EFF", strokeWidth=2)
+        .encode(
+            x=alt.X("Date:T", title=None),
+            y=alt.Y("Value:Q", title=y_title, scale=alt.Scale(zero=False)),
+            tooltip=[alt.Tooltip("Date:T", title="Date"), alt.Tooltip("Value:Q", title="Value", format=",.2f")]
+        )
+        .properties(height=height)
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
+def line_chart_multi(df, height=400, y_title="Value ($)"):
+    frames = [
+        pd.DataFrame({"Date": df.index, "Series": col, "Value": df[col].values})
+        for col in df.columns
+    ]
+    long_df = pd.concat(frames, ignore_index=True)
+    chart = (
+        alt.Chart(long_df)
+        .mark_line(strokeWidth=2)
+        .encode(
+            x=alt.X("Date:T", title=None),
+            y=alt.Y("Value:Q", title=y_title, scale=alt.Scale(zero=False)),
+            color=alt.Color("Series:N", title=None),
+            tooltip=["Date:T", "Series:N", alt.Tooltip("Value:Q", title="Value", format=",.2f")]
+        )
+        .properties(height=height)
+    )
+    st.altair_chart(chart, use_container_width=True)
 
 
 # =========================================================
@@ -338,10 +801,7 @@ if page == "🏠 Overview":
         }
     )
 
-    st.line_chart(
-        overview_chart,
-        height=400
-    )
+    line_chart_multi(overview_chart, height=400)
 
     st.caption(
         "Historical simulation based on the selected "
@@ -366,10 +826,13 @@ if page == "🏠 Overview":
 
         for ticker, weight in portfolio.items():
 
-            st.write(
-                f"{ticker} — "
-                f"{weight * 100:.0f}%"
-            )
+            alloc_col1, alloc_col2 = st.columns([1, 2])
+
+            with alloc_col1:
+                ticker_button(ticker, key_suffix="overview")
+
+            with alloc_col2:
+                st.write(f"{weight * 100:.0f}%")
 
     with snapshot_col2:
 
@@ -459,6 +922,20 @@ elif page == "💼 Portfolio":
     st.divider()
 
     # ---------------------------------------------
+    # PORTFOLIO VALUE
+    # ---------------------------------------------
+
+    st.subheader("Portfolio Value")
+
+    line_chart_single(portfolio_growth * amount, height=350)
+
+    st.caption(
+        "Historical value of this portfolio over the trailing five years."
+    )
+
+    st.divider()
+
+    # ---------------------------------------------
     # ALLOCATION CHART
     # ---------------------------------------------
 
@@ -489,21 +966,26 @@ elif page == "💼 Portfolio":
 
     for ticker in portfolio.keys():
 
+        info = etf_information[ticker]
+
+        ticker_button(ticker, key_suffix="whatyouown", label=f"**{ticker}**")
+
         st.markdown(
-            f"### {ticker}"
+            f"<div style='font-size:1.05rem; line-height:1.55; color:#FAFAFA; "
+            f"margin-bottom:0.6rem;'>"
+            f"<strong>{info['name']}</strong> — {info['description']}"
+            f"</div>",
+            unsafe_allow_html=True
         )
 
-        st.write(
-            etf_information[ticker]["name"]
+        st.markdown(
+            f"<div style='font-size:0.85rem; color:#8FBFFF; margin-top:0.4rem;'>"
+            f"{info['role']} · {info['focus']}"
+            f"</div>",
+            unsafe_allow_html=True
         )
 
-        st.caption(
-            etf_information[ticker]["role"]
-        )
-
-        st.write(
-            etf_information[ticker]["focus"]
-        )
+        st.divider()
 
 
 # =========================================================
@@ -576,10 +1058,7 @@ elif page == "📈 Performance":
         portfolio_growth * amount
     )
 
-    st.line_chart(
-        portfolio_value,
-        height=400
-    )
+    line_chart_single(portfolio_value, height=400)
 
     st.caption(
         "Historical value of the hypothetical portfolio "
@@ -604,10 +1083,7 @@ elif page == "📈 Performance":
         }
     )
 
-    st.line_chart(
-        comparison,
-        height=400
-    )
+    line_chart_multi(comparison, height=400)
 
     st.divider()
 
@@ -786,6 +1262,8 @@ elif page == "🔍 ETF Research":
         f"{selected_etf} — {info['name']}"
     )
 
+    ticker_button(selected_etf, key_suffix="etfresearch", label="View Chart & Stats")
+
     # ---------------------------------------------
     # ETF DETAILS
     # ---------------------------------------------
@@ -866,10 +1344,7 @@ elif page == "🔍 ETF Research":
 
     st.subheader("Historical Price")
 
-    st.line_chart(
-        etf_close,
-        height=400
-    )
+    line_chart_single(etf_close, height=400, y_title="Price ($)")
 
     # ---------------------------------------------
     # USER EXPOSURE
@@ -1048,10 +1523,7 @@ elif page == "🧪 Scenario Lab":
         * scenario_amount
     )
 
-    st.line_chart(
-        scenario_value,
-        height=400
-    )
+    line_chart_single(scenario_value, height=400)
 
     st.divider()
 

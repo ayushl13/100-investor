@@ -1,0 +1,37 @@
+# PortfolioLab
+
+A little Streamlit app I built to make sense of investing basics — pick a risk level, punch in an amount, and see how that hypothetical portfolio would've actually done over the last 5 years using real market data.
+
+Started as a way to actually understand what "diversification" and "risk" mean with real numbers instead of just reading about it.
+
+## What it does
+
+- Pick a portfolio (Conservative, Moderate, Aggressive) made of a few ETFs — VOO, QQQ, VXUS, BND
+- See how much your money would've grown historically, compared against the S&P 500
+- Look at risk stuff: volatility, max drawdown, a simplified risk score
+- Click into any ETF to see its price chart (day/week/month/year/YTD) plus key stats
+- Run a "what-if" scenario with a different amount/risk profile without messing with your main settings
+
+Everything is historical simulation — not investment advice, just a way to learn.
+
+## Stack
+
+- Python + Streamlit for the app/UI
+- `yfinance` for pulling real historical price data
+- `pandas` for the return/growth math
+- Altair for the charts (so the y-axis actually zooms into price movement instead of flattening everything to zero)
+
+## Running it locally
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install streamlit yfinance pandas altair
+streamlit run app.py
+```
+
+Then open `http://localhost:8501`.
+
+## Why
+
+Wanted a low-stakes way to poke at real market data and actually see how allocation decisions play out, rather than just trusting a rule of thumb. Still very much a work in progress.
