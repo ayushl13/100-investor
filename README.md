@@ -26,7 +26,7 @@ Everything is historical simulation — not investment advice, just a way to lea
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install streamlit yfinance pandas altair
+pip install -r requirements.txt
 streamlit run app.py
 ```
 

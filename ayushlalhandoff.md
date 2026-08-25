@@ -12,9 +12,20 @@ App entry point: `app.py` (single-file Streamlit app)
 
 ## Stack
 
-- Python 3.9, Streamlit 1.50, `yfinance`, `pandas`, Altair (bundled with Streamlit).
-- No `requirements.txt` yet — recommended next step, since `yfinance`'s data shape has broken on version upgrades before.
-- Local dev venv lives at `.venv/` (gitignored, not committed).
+- Python 3.9.6, Streamlit 1.50.0, `yfinance` 1.2.0, `pandas` 2.3.3, Altair 5.5.0 (bundled with Streamlit). Exact versions pinned in `requirements.txt` — verified this session by installing them into a brand-new empty venv and confirming the app runs.
+- Local dev venv lives at `.venv/` (gitignored, not committed) — see "Getting it running again" below to recreate it.
+
+## Getting it running again (from a fresh clone, fresh session, or your friend's machine)
+
+```bash
+cd 100-investor          # inside the cloned repo
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Then open the URL it prints (usually `http://localhost:8501`). That's the whole setup — no API keys, no accounts, no extra config. `.streamlit/config.toml` (already in the repo) applies the dark theme automatically.
 
 ## What the app does
 
@@ -34,12 +45,9 @@ Single-page Streamlit app ("PortfolioLab") simulating 3 preset portfolios (Conse
 - **No caching on the original `yf.download()` calls** (the ones from before this session, at the top of the script and in ETF Research / Scenario Lab) — every widget interaction re-downloads 5 years of data. Only the *new* ticker-dialog fetches added this session are cached.
 - **No error handling** around those original `yf.download()` calls — a Yahoo Finance hiccup will crash the whole app with a raw traceback.
 - **Hardcoded fragile dependency**: `benchmark_returns = returns["VOO"]` assumes VOO is always in whatever portfolio is selected. True for all 3 current presets, but would break if a portfolio without VOO were ever added.
-- No `requirements.txt`.
 - Streamlit deprecation warning in the logs about `use_container_width` (harmless for now, will need updating before Streamlit removes it after 2025-12-31).
 
 ## Suggested next steps
 
-- Add `requirements.txt` (pin `streamlit`, `yfinance`, `pandas`, `altair` versions).
 - Add `@st.cache_data` to the original top-of-script `yf.download()` calls and wrap them in try/except.
 - Decide whether to extend click-to-view ticker popups to any other spots on the site.
-- Push this session's work to GitHub (`git push origin main`) once committed.
