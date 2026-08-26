@@ -582,19 +582,23 @@ def render_auth_quote_panel(mode):
 
     st.markdown(
         f"""
-        <div style='height:100%; min-height:480px; border-radius:16px;
-                    background:
-                        linear-gradient(160deg, rgba(27,42,74,0.55) 0%, rgba(16,16,20,0.85) 100%),
-                        url('{NYSE_PHOTO_URL}');
-                    background-size: cover;
-                    background-position: center;
-                    display:flex; align-items:flex-end; justify-content:center;
-                    padding:2.5rem; text-align:center; position:relative;'>
-            <div>
-                <p style='font-size:1.3rem; font-weight:600; color:#FAFAFA; line-height:1.4;'>
-                    "{quote}"
-                </p>
-                <p style='font-size:0.85rem; color:#8FBFFF; margin-top:0.5rem;'>— {author}</p>
+        <div style='position:relative; height:100%; min-height:480px; border-radius:16px;
+                    overflow:hidden;'>
+            <img src="{NYSE_PHOTO_URL}"
+                 style='position:absolute; inset:0; width:100%; height:100%;
+                        object-fit:cover; z-index:0;'>
+            <div style='position:absolute; inset:0; z-index:1;
+                        background: linear-gradient(160deg, rgba(27,42,74,0.55) 0%, rgba(16,16,20,0.85) 100%);'>
+            </div>
+            <div style='position:relative; z-index:2; height:100%; display:flex;
+                        align-items:flex-end; justify-content:center;
+                        padding:2.5rem; text-align:center;'>
+                <div>
+                    <p style='font-size:1.3rem; font-weight:600; color:#FAFAFA; line-height:1.4;'>
+                        "{quote}"
+                    </p>
+                    <p style='font-size:0.85rem; color:#8FBFFF; margin-top:0.5rem;'>— {author}</p>
+                </div>
             </div>
         </div>
         <p style='font-size:0.65rem; opacity:0.5; text-align:right; margin-top:0.3rem;'>
