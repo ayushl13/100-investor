@@ -318,9 +318,16 @@ html, body {
 
 /* Layout: centered content with breathing room on both sides */
 .block-container {
-    max-width: 1100px !important;
+    max-width: 1280px !important;
     margin: 0 auto !important;
     padding-top: 2rem !important;
+}
+
+/* Slightly tighter button padding so nav labels fit on one line */
+[data-testid="stButton"] button {
+    padding-left: 0.6rem !important;
+    padding-right: 0.6rem !important;
+    white-space: nowrap !important;
 }
 
 /* Font scale: proportional to each element's importance */
@@ -669,11 +676,18 @@ portfolios = {
 # TOP NAVIGATION
 # =========================================================
 
-nav_main, nav_account = st.columns([5, 2])
+nav_main, nav_account = st.columns([6, 1])
 
 with nav_main:
     st.markdown(
-        "<h2 style='text-align:center; margin-bottom:0;'>PortfolioLab</h2>"
+        "<div style='display:flex; align-items:center; justify-content:center; gap:0.5rem;'>"
+        "<svg width='26' height='26' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>"
+        "<rect x='3' y='12' width='4' height='9' rx='1' fill='#4A9EFF'/>"
+        "<rect x='10' y='7' width='4' height='14' rx='1' fill='#4A9EFF'/>"
+        "<rect x='17' y='3' width='4' height='18' rx='1' fill='#4A9EFF'/>"
+        "</svg>"
+        "<h2 style='margin:0;'>PortfolioLab</h2>"
+        "</div>"
         "<p style='text-align:center; opacity:0.75; font-size:0.85rem; margin-top:0.2rem;'>"
         "Simple portfolio analytics for first-time investors."
         "</p>",
@@ -715,7 +729,11 @@ with nav_main:
 
 page = st.session_state["current_page"]
 
-st.divider()
+st.markdown(
+    "<hr style='border:none; border-top:2px solid rgba(255,255,255,0.2); "
+    "margin-top:1rem; margin-bottom:1.5rem;'>",
+    unsafe_allow_html=True
+)
 
 st.session_state.setdefault("global_amount", 100.0)
 st.session_state.setdefault("global_risk", "Conservative")
