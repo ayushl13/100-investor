@@ -23,6 +23,8 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Either way, it'll open automatically in your browser (usually `http://localhost:8501`).
+
 ## What it does
 
 - Sign up / sign in to use it (accounts are stored locally, passwords are hashed — never saved in plain text)
@@ -42,9 +44,6 @@ Everything is historical simulation — not investment advice, just a way to lea
 - `pandas` for the return/growth math
 - Altair for the charts (so the y-axis actually zooms into price movement instead of flattening everything to zero)
 - A live-fetched, cached list of S&P 500 companies (pulled from Wikipedia) powers the "add a stock" dropdown
-
-
-Then open `http://localhost:8501`.
 
 ## Why
 
