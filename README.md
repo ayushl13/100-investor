@@ -2,7 +2,9 @@
 
 **Want to open the site?**
 
-Already have it cloned? Open the project folder in VS Code, open its built-in terminal (menu bar → Terminal → New Terminal — it opens already inside the right folder, nothing else to do), and paste this:
+Since you already have the project on your computer: go to VS Code and hit File → Open Folder, and open the folder of whatever this project is called on your computer (mine is called `100-investor`). Then open a new terminal inside that window (Terminal → New Terminal in the menu bar).
+
+Before pasting anything, type `pwd` and press Enter to make sure you're in the right folder — it should end in your project's name (e.g. `.../100-investor`). Then paste the following:
 
 ```bash
 git pull origin main
@@ -49,7 +51,9 @@ Everything is historical simulation — not investment advice, just a way to lea
 
 ## Running it locally
 
-Already have it cloned? Open the project folder in VS Code, open its built-in terminal (menu bar → Terminal → New Terminal — it opens already inside the right folder, nothing else to do), and paste this:
+Since you already have the project on your computer: go to VS Code and hit File → Open Folder, and open the folder of whatever this project is called on your computer (mine is called `100-investor`). Then open a new terminal inside that window (Terminal → New Terminal in the menu bar).
+
+Before pasting anything, type `pwd` and press Enter to make sure you're in the right folder — it should end in your project's name (e.g. `.../100-investor`). Then paste the following:
 
 ```bash
 git pull origin main
