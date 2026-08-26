@@ -3,6 +3,10 @@ import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
 import altair as alt
+import hashlib
+import json
+import os
+import secrets
 
 
 # =========================================================
@@ -308,6 +312,9 @@ html, body {
 [data-testid="stSidebar"] {
     background-color: rgba(30, 30, 34, 0.9) !important;
 }
+[data-testid="InputInstructions"] {
+    display: none !important;
+}
 </style>
 """
 
@@ -317,6 +324,282 @@ def render_kinetic_grid_background():
 
 render_kinetic_grid_background()
 
+
+# =========================================================
+# AUTHENTICATION
+# =========================================================
+
+USERS_FILE = "users.json"
+
+
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
+    with open(USERS_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_users(users):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
+
+
+def hash_password(password, salt):
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode(), salt.encode(), 100_000
+    ).hex()
+
+
+def create_user(name, email, password):
+    users = load_users()
+    email_key = email.strip().lower()
+
+    if email_key in users:
+        return False, "An account with this email already exists."
+
+    salt = secrets.token_hex(16)
+
+    users[email_key] = {
+        "name": name.strip(),
+        "salt": salt,
+        "password_hash": hash_password(password, salt)
+    }
+
+    save_users(users)
+    return True, "Account created."
+
+
+def authenticate(email, password):
+    users = load_users()
+    email_key = email.strip().lower()
+    user = users.get(email_key)
+
+    if not user:
+        return False, None
+
+    if hash_password(password, user["salt"]) == user["password_hash"]:
+        return True, user["name"]
+
+    return False, None
+
+
+PASSWORD_STRENGTH_COLORS = ["#dc2626", "#ea580c", "#eab308", "#16a34a"]
+
+
+def password_requirements(password, min_length=8):
+    return [
+        (f"At least {min_length} characters", len(password) >= min_length),
+        ("Contains an uppercase letter", any(c.isupper() for c in password)),
+        ("Contains a number", any(c.isdigit() for c in password)),
+        ("Contains a special character", any(not c.isalnum() for c in password)),
+    ]
+
+
+def render_password_strength_meter(password):
+    requirements = password_requirements(password)
+    levels = len(requirements)
+    strength = sum(1 for _, met in requirements if met) if password else 0
+
+    bars = "".join(
+        f"<div style='height:8px; flex:1; border-radius:999px; "
+        f"background:{PASSWORD_STRENGTH_COLORS[strength - 1] if i < strength else 'rgba(255,255,255,0.15)'};'></div>"
+        for i in range(levels)
+    )
+
+    checklist = "".join(
+        f"<div style='display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; "
+        f"color:{'#4ADE80' if met else '#9CA3AF'}; margin-top:0.2rem;'>"
+        f"<span>{'✓' if met else '•'}</span><span>{label}</span></div>"
+        for label, met in requirements
+    )
+
+    st.markdown(
+        f"<div id='pw-meter-static'>"
+        f"<div style='display:flex; gap:4px; margin-top:0.5rem;'>{bars}</div>"
+        f"<div style='margin-top:0.5rem;'>{checklist}</div>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+
+
+LIVE_PASSWORD_STRENGTH_JS = r"""
+<script>
+(function () {
+    try {
+        var win = window.parent;
+        var doc = win.document;
+        var probe = doc.body.nodeName;  // throws if cross-origin blocked
+
+        var inputs = doc.querySelectorAll('input[type="password"]');
+        if (inputs.length === 0) { return; }
+        var input = inputs[inputs.length - 1];
+
+        if (input.__liveStrengthAttached) { return; }
+        input.__liveStrengthAttached = true;
+
+        var staticMeter = doc.getElementById('pw-meter-static');
+        if (staticMeter) { staticMeter.style.display = 'none'; }
+
+        var colors = ["#dc2626", "#ea580c", "#eab308", "#16a34a"];
+        var requirements = [
+            { label: "At least 8 characters", test: function (p) { return p.length >= 8; } },
+            { label: "Contains an uppercase letter", test: function (p) { return /[A-Z]/.test(p); } },
+            { label: "Contains a number", test: function (p) { return /[0-9]/.test(p); } },
+            { label: "Contains a special character", test: function (p) { return /[^A-Za-z0-9]/.test(p); } }
+        ];
+
+        var meter = doc.createElement('div');
+        meter.id = 'pw-meter-live';
+
+        var wrapper = input.closest('[data-testid="stTextInput"]') || input.parentElement;
+        wrapper.insertAdjacentElement('afterend', meter);
+
+        function render() {
+            var password = input.value;
+            var met = requirements.map(function (r) { return r.test(password); });
+            var strength = password ? met.filter(Boolean).length : 0;
+
+            var bars = '';
+            for (var i = 0; i < requirements.length; i++) {
+                var bg = i < strength ? colors[strength - 1] : 'rgba(255,255,255,0.15)';
+                bars += '<div style="height:8px; flex:1; border-radius:999px; background:' + bg + ';"></div>';
+            }
+
+            var checklist = '';
+            for (var j = 0; j < requirements.length; j++) {
+                var color = met[j] ? '#4ADE80' : '#9CA3AF';
+                var mark = met[j] ? '✓' : '•';
+                checklist += '<div style="display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; color:' + color + '; margin-top:0.2rem;"><span>' + mark + '</span><span>' + requirements[j].label + '</span></div>';
+            }
+
+            meter.innerHTML =
+                '<div style="display:flex; gap:4px; margin-top:0.5rem;">' + bars + '</div>' +
+                '<div style="margin-top:0.5rem;">' + checklist + '</div>';
+        }
+
+        input.addEventListener('input', render);
+        render();
+    } catch (err) {
+        // Cross-frame access blocked by the browser — the static,
+        // Enter/blur-triggered meter remains visible as a fallback.
+    }
+})();
+</script>
+"""
+
+
+def render_live_password_strength_script():
+    components.html(LIVE_PASSWORD_STRENGTH_JS, height=0)
+
+
+AUTH_QUOTES = {
+    "sign_in": ("Welcome back. The journey continues.", "PortfolioLab"),
+    "sign_up": ("Investing is understanding, not guessing.", "PortfolioLab"),
+}
+
+
+def render_auth_quote_panel(mode):
+    quote, author = AUTH_QUOTES[mode]
+
+    st.markdown(
+        f"""
+        <div style='height:100%; min-height:480px; border-radius:16px;
+                    background: linear-gradient(160deg, #1b2a4a 0%, #101014 100%);
+                    display:flex; align-items:flex-end; justify-content:center;
+                    padding:2.5rem; text-align:center;'>
+            <div>
+                <p style='font-size:1.3rem; font-weight:600; color:#FAFAFA; line-height:1.4;'>
+                    "{quote}"
+                </p>
+                <p style='font-size:0.85rem; color:#8FBFFF; margin-top:0.5rem;'>— {author}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_sign_in_form():
+    st.markdown("### Sign in to your account")
+    st.caption("Enter your email below to sign in")
+
+    email = st.text_input("Email", placeholder="you@example.com", key="signin_email")
+    password = st.text_input("Password", type="password", placeholder="Password", key="signin_password")
+
+    if st.button("Sign In", type="primary", width="stretch"):
+        if not email or not password:
+            st.error("Please fill in both fields.")
+        else:
+            ok, name = authenticate(email, password)
+            if ok:
+                st.session_state["auth_logged_in"] = True
+                st.session_state["auth_name"] = name
+                st.session_state["auth_email"] = email.strip().lower()
+                st.rerun()
+            else:
+                st.error("Incorrect email or password.")
+
+    st.write("Don't have an account?")
+    if st.button("Sign up", type="tertiary", key="switch_to_signup"):
+        st.session_state["auth_mode"] = "sign_up"
+        st.rerun()
+
+
+def render_sign_up_form():
+    st.markdown("### Create an account")
+    st.caption("Enter your details below to sign up")
+
+    name = st.text_input("Full Name", placeholder="John Doe", key="signup_name")
+    email = st.text_input("Email", placeholder="you@example.com", key="signup_email")
+    password = st.text_input("Password", type="password", placeholder="Password", key="signup_password")
+
+    render_password_strength_meter(password)
+    render_live_password_strength_script()
+
+    if st.button("Sign Up", type="primary", width="stretch"):
+        if not name or not email or not password:
+            st.error("Please fill in all fields.")
+        else:
+            ok, message = create_user(name, email, password)
+            if ok:
+                st.session_state["auth_logged_in"] = True
+                st.session_state["auth_name"] = name.strip()
+                st.session_state["auth_email"] = email.strip().lower()
+                st.rerun()
+            else:
+                st.error(message)
+
+    st.write("Already have an account?")
+    if st.button("Sign in", type="tertiary", key="switch_to_signin"):
+        st.session_state["auth_mode"] = "sign_in"
+        st.rerun()
+
+
+def render_auth_screen():
+    st.session_state.setdefault("auth_mode", "sign_in")
+
+    st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
+
+    col_form, col_quote = st.columns([1, 1], gap="large")
+
+    with col_form:
+        _, form_center, _ = st.columns([1, 3, 1])
+        with form_center:
+            if st.session_state["auth_mode"] == "sign_in":
+                render_sign_in_form()
+            else:
+                render_sign_up_form()
+
+    with col_quote:
+        render_auth_quote_panel(st.session_state["auth_mode"])
+
+
+if "auth_logged_in" not in st.session_state:
+    st.session_state["auth_logged_in"] = False
+
+if not st.session_state["auth_logged_in"]:
+    render_auth_screen()
+    st.stop()
 
 
 # =========================================================
@@ -356,6 +639,12 @@ st.sidebar.title("📊 PortfolioLab")
 st.sidebar.caption(
     "Simple portfolio analytics for first-time investors."
 )
+
+st.sidebar.caption(f"Signed in as **{st.session_state.get('auth_name', 'User')}**")
+
+if st.sidebar.button("Log out", type="tertiary"):
+    st.session_state["auth_logged_in"] = False
+    st.rerun()
 
 st.sidebar.divider()
 
@@ -407,7 +696,26 @@ st.sidebar.caption(
 # SELECT PORTFOLIO
 # =========================================================
 
-portfolio = portfolios[risk]
+st.session_state.setdefault("custom_holdings", {})
+
+preset_dollar_holdings = {
+    ticker: weight * amount
+    for ticker, weight in portfolios[risk].items()
+}
+
+combined_dollar_holdings = dict(preset_dollar_holdings)
+
+for ticker, custom_amount in st.session_state["custom_holdings"].items():
+    combined_dollar_holdings[ticker] = (
+        combined_dollar_holdings.get(ticker, 0) + custom_amount
+    )
+
+total_invested = sum(combined_dollar_holdings.values())
+
+portfolio = {
+    ticker: dollar_amount / total_invested
+    for ticker, dollar_amount in combined_dollar_holdings.items()
+}
 
 
 # =========================================================
@@ -455,7 +763,7 @@ portfolio_growth = (
 
 
 final_value = (
-    amount * portfolio_growth.iloc[-1]
+    total_invested * portfolio_growth.iloc[-1]
 )
 
 
@@ -476,7 +784,7 @@ benchmark_growth = (
 
 
 benchmark_value = (
-    amount * benchmark_growth.iloc[-1]
+    total_invested * benchmark_growth.iloc[-1]
 )
 
 
@@ -577,6 +885,136 @@ etf_information = {
 }
 
 
+SP500_FALLBACK = [
+    ("AAPL", "Apple Inc.", "Information Technology"),
+    ("MSFT", "Microsoft Corp.", "Information Technology"),
+    ("NVDA", "NVIDIA Corp.", "Information Technology"),
+    ("GOOGL", "Alphabet Inc.", "Communication Services"),
+    ("AMZN", "Amazon.com Inc.", "Consumer Discretionary"),
+    ("META", "Meta Platforms Inc.", "Communication Services"),
+    ("TSLA", "Tesla Inc.", "Consumer Discretionary"),
+    ("JPM", "JPMorgan Chase & Co.", "Financials"),
+    ("JNJ", "Johnson & Johnson", "Health Care"),
+    ("XOM", "Exxon Mobil Corp.", "Energy"),
+]
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_sp500_list():
+    try:
+        import urllib.request
+        import io
+
+        req = urllib.request.Request(
+            "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+        )
+        html = urllib.request.urlopen(req, timeout=15).read()
+        tables = pd.read_html(io.BytesIO(html))
+        df = tables[0]
+
+        rows = list(zip(df["Symbol"], df["Security"], df["GICS Sector"]))
+        rows = [(str(t).replace(".", "-"), str(n), str(s)) for t, n, s in rows]
+        return sorted(rows, key=lambda r: r[1])
+    except Exception:
+        return SP500_FALLBACK
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_company_info(ticker):
+    try:
+        info = yf.Ticker(ticker).info
+        summary = info.get("longBusinessSummary", "")
+        if summary and len(summary) > 220:
+            summary = summary[:220].rsplit(" ", 1)[0] + "…"
+
+        return {
+            "name": info.get("longName") or info.get("shortName") or ticker,
+            "asset_class": "Equity",
+            "focus": info.get("sector") or info.get("industry") or "Individual stock",
+            "role": "User-added holding",
+            "description": summary or f"{ticker} is a stock you've added to your portfolio."
+        }
+    except Exception:
+        return {
+            "name": ticker,
+            "asset_class": "Equity",
+            "focus": "Individual stock",
+            "role": "User-added holding",
+            "description": f"{ticker} is a stock you've added to your portfolio."
+        }
+
+
+def get_ticker_display_info(ticker):
+    if ticker in etf_information:
+        return etf_information[ticker]
+    return fetch_company_info(ticker)
+
+
+def render_add_stock_section():
+    st.subheader("Add a Stock")
+    st.caption("Add any S&P 500 company to your portfolio with its own dollar amount.")
+
+    sp500 = fetch_sp500_list()
+    sectors = sorted(set(sector for _, _, sector in sp500))
+
+    selected_sectors = st.multiselect(
+        "Filter by sector",
+        sectors,
+        placeholder="All sectors"
+    )
+
+    filtered = [
+        (ticker, name) for ticker, name, sector in sp500
+        if not selected_sectors or sector in selected_sectors
+    ]
+
+    if not filtered:
+        st.info("No companies match the selected sector filter.")
+        return
+
+    options = [f"{ticker} — {name}" for ticker, name in filtered]
+
+    add_col1, add_col2, add_col3 = st.columns([3, 1, 1])
+
+    with add_col1:
+        selected_option = st.selectbox("Choose a stock", options, key="add_stock_select")
+
+    with add_col2:
+        stock_amount = st.number_input(
+            "Amount ($)", min_value=10.0, value=100.0, step=10.0, key="add_stock_amount"
+        )
+
+    with add_col3:
+        st.write("")
+        st.write("")
+        if st.button("Add to Portfolio", type="primary"):
+            ticker = selected_option.split(" — ")[0]
+            st.session_state["custom_holdings"][ticker] = (
+                st.session_state["custom_holdings"].get(ticker, 0) + stock_amount
+            )
+            st.rerun()
+
+    if st.session_state["custom_holdings"]:
+        st.write("**Your added stocks:**")
+
+        for ticker, custom_amount in list(st.session_state["custom_holdings"].items()):
+            remove_col1, remove_col2, remove_col3 = st.columns([1, 1, 1])
+
+            with remove_col1:
+                st.write(f"**{ticker}**")
+
+            with remove_col2:
+                st.write(f"${custom_amount:,.2f}")
+
+            with remove_col3:
+                if st.button("Remove", key=f"remove_custom_{ticker}", type="tertiary"):
+                    del st.session_state["custom_holdings"][ticker]
+                    st.rerun()
+
+    st.divider()
+
+
 # =========================================================
 # TICKER DETAIL POPUP
 # =========================================================
@@ -675,9 +1113,8 @@ def ticker_dialog(ticker):
             range_return = (hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1) * 100
             st.caption(f"{label} change: {range_return:+.2f}%")
 
-    if ticker in etf_information:
-        st.divider()
-        st.caption(etf_information[ticker]["focus"])
+    st.divider()
+    st.caption(get_ticker_display_info(ticker)["focus"])
 
 
 def ticker_button(ticker, key_suffix, label=None):
@@ -756,7 +1193,7 @@ if page == "🏠 Overview":
 
         st.metric(
             "Investment",
-            f"${amount:,.2f}"
+            f"${total_invested:,.2f}"
         )
 
     with overview2:
@@ -794,10 +1231,10 @@ if page == "🏠 Overview":
     overview_chart = pd.DataFrame(
         {
             "Your Portfolio":
-                portfolio_growth * amount,
+                portfolio_growth * total_invested,
 
             "S&P 500":
-                benchmark_growth * amount
+                benchmark_growth * total_invested
         }
     )
 
@@ -874,7 +1311,7 @@ elif page == "💼 Portfolio":
 
     st.write(
         f"Your **{risk.lower()}** portfolio distributes "
-        f"${amount:,.2f} across {len(portfolio)} ETFs."
+        f"${total_invested:,.2f} across {len(portfolio)} holdings."
     )
 
     st.divider()
@@ -887,7 +1324,7 @@ elif page == "💼 Portfolio":
 
     allocation_data = pd.DataFrame(
         {
-            "ETF": list(portfolio.keys()),
+            "Ticker": list(portfolio.keys()),
 
             "Allocation": [
                 weight * 100
@@ -895,7 +1332,7 @@ elif page == "💼 Portfolio":
             ],
 
             "Investment": [
-                amount * weight
+                total_invested * weight
                 for weight in portfolio.values()
             ]
         }
@@ -921,13 +1358,15 @@ elif page == "💼 Portfolio":
 
     st.divider()
 
+    render_add_stock_section()
+
     # ---------------------------------------------
     # PORTFOLIO VALUE
     # ---------------------------------------------
 
     st.subheader("Portfolio Value")
 
-    line_chart_single(portfolio_growth * amount, height=350)
+    line_chart_single(portfolio_growth * total_invested, height=350)
 
     st.caption(
         "Historical value of this portfolio over the trailing five years."
@@ -966,7 +1405,7 @@ elif page == "💼 Portfolio":
 
     for ticker in portfolio.keys():
 
-        info = etf_information[ticker]
+        info = get_ticker_display_info(ticker)
 
         ticker_button(ticker, key_suffix="whatyouown", label=f"**{ticker}**")
 
@@ -1055,7 +1494,7 @@ elif page == "📈 Performance":
     st.subheader("Portfolio Growth")
 
     portfolio_value = (
-        portfolio_growth * amount
+        portfolio_growth * total_invested
     )
 
     line_chart_single(portfolio_value, height=400)
@@ -1076,10 +1515,10 @@ elif page == "📈 Performance":
     comparison = pd.DataFrame(
         {
             "Your Portfolio":
-                portfolio_growth * amount,
+                portfolio_growth * total_invested,
 
             "S&P 500":
-                benchmark_growth * amount
+                benchmark_growth * total_invested
         }
     )
 
@@ -1252,11 +1691,11 @@ elif page == "🔍 ETF Research":
     # ---------------------------------------------
 
     selected_etf = st.selectbox(
-        "Select an ETF",
-        list(etf_information.keys())
+        "Select a holding",
+        list(portfolio.keys())
     )
 
-    info = etf_information[selected_etf]
+    info = get_ticker_display_info(selected_etf)
 
     st.subheader(
         f"{selected_etf} — {info['name']}"
@@ -1355,7 +1794,7 @@ elif page == "🔍 ETF Research":
         weight = portfolio[selected_etf]
 
         investment = (
-            amount * weight
+            total_invested * weight
         )
 
         st.divider()

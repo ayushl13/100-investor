@@ -17,10 +17,12 @@ Started as a way to actually understand what "diversification" and "risk" mean w
 
 ## What it does
 
+- Sign up / sign in to use it (accounts are stored locally, passwords are hashed — never saved in plain text)
 - Pick a portfolio (Conservative, Moderate, Aggressive) made of a few ETFs — VOO, QQQ, VXUS, BND
+- Add your own individual stocks on top of that, picked from the full current S&P 500 list, filterable by sector
 - See how much your money would've grown historically, compared against the S&P 500
 - Look at risk stuff: volatility, max drawdown, a simplified risk score
-- Click into any ETF to see its price chart (day/week/month/year/YTD) plus key stats
+- Click into any ticker (ETF or stock you added) to see its price chart (day/week/month/year/YTD) plus key stats
 - Run a "what-if" scenario with a different amount/risk profile without messing with your main settings
 
 Everything is historical simulation — not investment advice, just a way to learn.
@@ -31,6 +33,7 @@ Everything is historical simulation — not investment advice, just a way to lea
 - `yfinance` for pulling real historical price data
 - `pandas` for the return/growth math
 - Altair for the charts (so the y-axis actually zooms into price movement instead of flattening everything to zero)
+- A live-fetched, cached list of S&P 500 companies (pulled from Wikipedia) powers the "add a stock" dropdown
 
 ## Running it locally
 
