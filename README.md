@@ -3,11 +3,15 @@
 **Want to open the site?** Paste this into your terminal (inside this project folder):
 
 ```bash
+git clone https://github.com/ayushl13/100-investor.git
+cd 100-investor
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+(Already have it cloned? Skip the first two lines and just `cd` into your existing folder instead.)
 
 It'll open automatically in your browser.
 
@@ -38,11 +42,15 @@ Everything is historical simulation — not investment advice, just a way to lea
 ## Running it locally
 
 ```bash
+git clone https://github.com/ayushl13/100-investor.git
+cd 100-investor
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+(Already have it cloned? Skip the first two lines and just `cd` into your existing folder instead.)
 
 Then open `http://localhost:8501`.
 
