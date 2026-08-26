@@ -18,15 +18,28 @@ App entry point: `app.py` (single-file Streamlit app)
 
 ## Getting it running again (from a fresh clone, fresh session, or your friend's machine)
 
+**Real incident this session, worth remembering:** the user ran the "Running it locally" commands from their home directory instead of inside the cloned repo folder, got `ERROR: Could not open requirements file: [Errno 2] No such file or directory`, and both the README and this handoff had the exact same gap — they told the reader to run commands "inside this project folder" without ever showing the `git clone` + `cd` step for someone starting from nothing. Fixed in both docs now. **Whenever editing either doc's setup instructions again, always include the full path from zero (clone included), never assume the reader is already inside the folder.**
+
+**First time on a machine (nothing cloned yet):**
 ```bash
-cd 100-investor          # inside the cloned repo
+git clone https://github.com/ayushl13/100-investor.git
+cd 100-investor
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Then open the URL it prints (usually `http://localhost:8501`). That's the whole setup — no API keys, no accounts, no extra config. `.streamlit/config.toml` (already in the repo) applies the dark theme automatically.
+**Already cloned before, just want this session's updates:**
+```bash
+cd 100-investor
+git pull origin main
+pip install -r requirements.txt
+streamlit run app.py
+```
+No need to re-clone — `git pull` fetches whatever changed since the last clone/pull. Re-running `pip install -r requirements.txt` after every pull is just a cheap safety habit in case pinned versions changed; it's a no-op if they didn't.
+
+Then open the URL it prints (usually `http://localhost:8501`). That's the whole setup — no API keys, no extra config. `.streamlit/config.toml` (already in the repo) applies the dark theme automatically. **Accounts are NOT shared or synced** — `users.json` is gitignored and local to each machine, so anyone running their own clone (including the partner) needs to sign up fresh on their own machine the first time.
 
 ## What the app does
 

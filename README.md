@@ -11,7 +11,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-(Already have it cloned? Skip the first two lines and just `cd` into your existing folder instead.)
+(Already have it cloned? Skip the first two lines — `cd` into your existing folder, run `git pull origin main` to grab the latest changes, then continue from `pip install -r requirements.txt`. No need to re-clone just to get updates.)
 
 It'll open automatically in your browser.
 
