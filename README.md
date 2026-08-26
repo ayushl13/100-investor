@@ -2,7 +2,7 @@
 
 **Want to open the site?**
 
-Already have it cloned? `cd` into your project folder and paste this:
+Already have it cloned? Open the project folder in VS Code, open its built-in terminal (menu bar → Terminal → New Terminal — it opens already inside the right folder, nothing else to do), and paste this:
 
 ```bash
 git pull origin main
@@ -10,7 +10,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Never cloned it before (first time on this machine)? Paste this instead:
+Never cloned it before (first time on this machine)? Open any terminal and paste this instead — it'll create the folder for you:
 
 ```bash
 git clone https://github.com/ayushl13/100-investor.git
@@ -49,7 +49,7 @@ Everything is historical simulation — not investment advice, just a way to lea
 
 ## Running it locally
 
-Already have it cloned? `cd` into your project folder and paste this:
+Already have it cloned? Open the project folder in VS Code, open its built-in terminal (menu bar → Terminal → New Terminal — it opens already inside the right folder, nothing else to do), and paste this:
 
 ```bash
 git pull origin main
@@ -57,7 +57,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Never cloned it before (first time on this machine)? Paste this instead:
+Never cloned it before (first time on this machine)? Open any terminal and paste this instead — it'll create the folder for you:
 
 ```bash
 git clone https://github.com/ayushl13/100-investor.git
