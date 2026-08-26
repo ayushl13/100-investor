@@ -23,12 +23,6 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Either way, it'll open automatically in your browser.
-
-A little Streamlit app I built to make sense of investing basics — pick a risk level, punch in an amount, and see how that hypothetical portfolio would've actually done over the last 5 years using real market data.
-
-Started as a way to actually understand what "diversification" and "risk" mean with real numbers instead of just reading about it.
-
 ## What it does
 
 - Sign up / sign in to use it (accounts are stored locally, passwords are hashed — never saved in plain text)
@@ -49,28 +43,6 @@ Everything is historical simulation — not investment advice, just a way to lea
 - Altair for the charts (so the y-axis actually zooms into price movement instead of flattening everything to zero)
 - A live-fetched, cached list of S&P 500 companies (pulled from Wikipedia) powers the "add a stock" dropdown
 
-## Running it locally
-
-Since you already have the project on your computer: go to VS Code and hit File → Open Folder, and open the folder of whatever this project is called on your computer (mine is called `100-investor`). Then open a new terminal inside that window (Terminal → New Terminal in the menu bar).
-
-Before pasting anything, type `pwd` and press Enter to make sure you're in the right folder — it should end in your project's name (e.g. `.../100-investor`). Then paste the following:
-
-```bash
-git pull origin main
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-Never cloned it before (first time on this machine)? Open any terminal and paste this instead — it'll create the folder for you:
-
-```bash
-git clone https://github.com/ayushl13/100-investor.git
-cd 100-investor
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-streamlit run app.py
-```
 
 Then open `http://localhost:8501`.
 
