@@ -425,6 +425,40 @@ def authenticate(email, password):
     return False, None
 
 
+def create_session_token(email):
+    users = load_users()
+    email_key = email.strip().lower()
+    token = secrets.token_urlsafe(32)
+    users[email_key]["session_token"] = token
+    save_users(users)
+    return token
+
+
+def validate_session_token(token):
+    if not token:
+        return None
+
+    users = load_users()
+
+    for email_key, user in users.items():
+        if user.get("session_token") == token:
+            return email_key, user["name"]
+
+    return None
+
+
+def clear_session_token(email):
+    if not email:
+        return
+
+    users = load_users()
+    email_key = email.strip().lower()
+
+    if email_key in users and "session_token" in users[email_key]:
+        del users[email_key]["session_token"]
+        save_users(users)
+
+
 PASSWORD_STRENGTH_COLORS = ["#dc2626", "#ea580c", "#eab308", "#16a34a"]
 
 
@@ -540,15 +574,22 @@ AUTH_QUOTES = {
 }
 
 
+NYSE_PHOTO_URL = "https://upload.wikimedia.org/wikipedia/commons/4/43/NYC_-_New_York_Stock_Exchange.JPG"
+
+
 def render_auth_quote_panel(mode):
     quote, author = AUTH_QUOTES[mode]
 
     st.markdown(
         f"""
         <div style='height:100%; min-height:480px; border-radius:16px;
-                    background: linear-gradient(160deg, #1b2a4a 0%, #101014 100%);
+                    background:
+                        linear-gradient(160deg, rgba(27,42,74,0.55) 0%, rgba(16,16,20,0.85) 100%),
+                        url('{NYSE_PHOTO_URL}');
+                    background-size: cover;
+                    background-position: center;
                     display:flex; align-items:flex-end; justify-content:center;
-                    padding:2.5rem; text-align:center;'>
+                    padding:2.5rem; text-align:center; position:relative;'>
             <div>
                 <p style='font-size:1.3rem; font-weight:600; color:#FAFAFA; line-height:1.4;'>
                     "{quote}"
@@ -556,6 +597,9 @@ def render_auth_quote_panel(mode):
                 <p style='font-size:0.85rem; color:#8FBFFF; margin-top:0.5rem;'>— {author}</p>
             </div>
         </div>
+        <p style='font-size:0.65rem; opacity:0.5; text-align:right; margin-top:0.3rem;'>
+            NYSE photo: Jean-Christophe BENOIST, CC BY 3.0
+        </p>
         """,
         unsafe_allow_html=True
     )
@@ -577,6 +621,7 @@ def render_sign_in_form():
                 st.session_state["auth_logged_in"] = True
                 st.session_state["auth_name"] = name
                 st.session_state["auth_email"] = email.strip().lower()
+                st.query_params["token"] = create_session_token(email)
                 st.rerun()
             else:
                 st.error("Incorrect email or password.")
@@ -607,6 +652,7 @@ def render_sign_up_form():
                 st.session_state["auth_logged_in"] = True
                 st.session_state["auth_name"] = name.strip()
                 st.session_state["auth_email"] = email.strip().lower()
+                st.query_params["token"] = create_session_token(email)
                 st.rerun()
             else:
                 st.error(message)
@@ -638,6 +684,14 @@ def render_auth_screen():
 
 if "auth_logged_in" not in st.session_state:
     st.session_state["auth_logged_in"] = False
+
+if not st.session_state["auth_logged_in"]:
+    token_result = validate_session_token(st.query_params.get("token"))
+    if token_result:
+        auto_email, auto_name = token_result
+        st.session_state["auth_logged_in"] = True
+        st.session_state["auth_name"] = auto_name
+        st.session_state["auth_email"] = auto_email
 
 if not st.session_state["auth_logged_in"]:
     render_auth_screen()
@@ -696,7 +750,10 @@ with nav_main:
 
 with nav_account:
     if st.button("Log out", type="tertiary", key="top_logout"):
+        clear_session_token(st.session_state.get("auth_email"))
         st.session_state["auth_logged_in"] = False
+        if "token" in st.query_params:
+            del st.query_params["token"]
         st.rerun()
     st.caption(f"Signed in as **{st.session_state.get('auth_name', 'User')}**")
 
