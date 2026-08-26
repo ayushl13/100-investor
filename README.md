@@ -1,6 +1,16 @@
 # PortfolioLab
 
-**Want to open the site?** Paste this into your terminal (inside this project folder):
+**Want to open the site?**
+
+Already have it cloned? `cd` into your project folder and paste this:
+
+```bash
+git pull origin main
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Never cloned it before (first time on this machine)? Paste this instead:
 
 ```bash
 git clone https://github.com/ayushl13/100-investor.git
@@ -11,9 +21,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-(Already have it cloned? Skip the first two lines — `cd` into your existing folder, run `git pull origin main` to grab the latest changes, then continue from `pip install -r requirements.txt`. No need to re-clone just to get updates.)
-
-It'll open automatically in your browser.
+Either way, it'll open automatically in your browser.
 
 A little Streamlit app I built to make sense of investing basics — pick a risk level, punch in an amount, and see how that hypothetical portfolio would've actually done over the last 5 years using real market data.
 
@@ -41,6 +49,16 @@ Everything is historical simulation — not investment advice, just a way to lea
 
 ## Running it locally
 
+Already have it cloned? `cd` into your project folder and paste this:
+
+```bash
+git pull origin main
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Never cloned it before (first time on this machine)? Paste this instead:
+
 ```bash
 git clone https://github.com/ayushl13/100-investor.git
 cd 100-investor
@@ -49,8 +67,6 @@ source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
-
-(Already have it cloned? Skip the first two lines and just `cd` into your existing folder instead.)
 
 Then open `http://localhost:8501`.
 
