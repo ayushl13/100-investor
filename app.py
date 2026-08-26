@@ -1202,6 +1202,28 @@ def ticker_button(ticker, key_suffix, label=None):
         ticker_dialog(ticker)
 
 
+def extract_close_series(prices_df, ticker):
+    close = prices_df["Close"]
+
+    if isinstance(close, pd.Series):
+        return close
+
+    if isinstance(close.columns, pd.MultiIndex):
+        if ticker in close.columns.get_level_values(-1):
+            return close.xs(ticker, axis=1, level=-1).iloc[:, 0]
+        return close.iloc[:, 0]
+
+    if ticker in close.columns:
+        return close[ticker]
+
+    # yfinance has been observed to name the single remaining column
+    # inconsistently across calls within the same process (varies by
+    # whether the ticker was already fetched as part of a different
+    # multi-ticker batch earlier in the same run). With only one column
+    # present, it must be the ticker's data regardless of its label.
+    return close.iloc[:, 0]
+
+
 def line_chart_single(series, height=350, y_title="Value ($)"):
     if isinstance(series, pd.DataFrame):
         series = series.iloc[:, 0]
@@ -1837,7 +1859,7 @@ elif page == "ETF Research":
         progress=False
     )
 
-    etf_close = etf_prices["Close"][selected_etf]
+    etf_close = extract_close_series(etf_prices, selected_etf)
 
     etf_returns = (
         etf_close
