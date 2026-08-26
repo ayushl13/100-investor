@@ -2,3 +2,4 @@ streamlit==1.50.0
 yfinance==1.2.0
 pandas==2.3.3
 altair==5.5.0
+psycopg2-binary==2.9.12

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import secrets
+import db as tradingdb
 
 
 # =========================================================
@@ -15,7 +16,6 @@ import secrets
 
 st.set_page_config(
     page_title="PortfolioLab",
-    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -309,11 +309,46 @@ html, body {
 .stApp {
     background: transparent !important;
 }
-[data-testid="stSidebar"] {
-    background-color: rgba(30, 30, 34, 0.9) !important;
+[data-testid="stSidebar"], [data-testid="collapsedControl"] {
+    display: none !important;
 }
 [data-testid="InputInstructions"] {
     display: none !important;
+}
+
+/* Layout: centered content with breathing room on both sides */
+.block-container {
+    max-width: 1100px !important;
+    margin: 0 auto !important;
+    padding-top: 2rem !important;
+}
+
+/* Font scale: proportional to each element's importance */
+h1 {
+    font-size: 2.4rem !important;
+    font-weight: 700 !important;
+}
+h2 {
+    font-size: 1.6rem !important;
+    font-weight: 600 !important;
+}
+h3 {
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+}
+[data-testid="stCaptionContainer"] {
+    font-size: 0.82rem !important;
+    opacity: 0.75;
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.8rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.7;
 }
 </style>
 """
@@ -631,65 +666,92 @@ portfolios = {
 
 
 # =========================================================
-# SIDEBAR
+# TOP NAVIGATION
 # =========================================================
 
-st.sidebar.title("📊 PortfolioLab")
+nav_main, nav_account = st.columns([5, 2])
 
-st.sidebar.caption(
-    "Simple portfolio analytics for first-time investors."
-)
+with nav_main:
+    st.markdown(
+        "<h2 style='text-align:center; margin-bottom:0;'>PortfolioLab</h2>"
+        "<p style='text-align:center; opacity:0.75; font-size:0.85rem; margin-top:0.2rem;'>"
+        "Simple portfolio analytics for first-time investors."
+        "</p>",
+        unsafe_allow_html=True
+    )
 
-st.sidebar.caption(f"Signed in as **{st.session_state.get('auth_name', 'User')}**")
+with nav_account:
+    if st.button("Log out", type="tertiary", key="top_logout"):
+        st.session_state["auth_logged_in"] = False
+        st.rerun()
+    st.caption(f"Signed in as **{st.session_state.get('auth_name', 'User')}**")
 
-if st.sidebar.button("Log out", type="tertiary"):
-    st.session_state["auth_logged_in"] = False
-    st.rerun()
+st.session_state.setdefault("current_page", "Overview")
 
-st.sidebar.divider()
+NAV_OPTIONS = [
+    "Overview",
+    "Portfolio",
+    "Performance",
+    "Risk",
+    "ETF Research",
+    "Scenario Lab",
+    "About"
+]
 
-st.sidebar.subheader("Navigation")
+with nav_main:
+    nav_cols = st.columns(len(NAV_OPTIONS))
 
-page = st.sidebar.radio(
-    "Go to",
-    [
-        "🏠 Overview",
-        "💼 Portfolio",
-        "📈 Performance",
-        "⚠️ Risk",
-        "🔍 ETF Research",
-        "🧪 Scenario Lab",
-        "ℹ️ About"
-    ],
-    label_visibility="collapsed"
-)
+    for nav_col, option in zip(nav_cols, NAV_OPTIONS):
+        with nav_col:
+            is_active = st.session_state["current_page"] == option
+            if st.button(
+                option,
+                key=f"nav_{option}",
+                type="primary" if is_active else "tertiary",
+                width="stretch"
+            ):
+                st.session_state["current_page"] = option
+                st.rerun()
 
-st.sidebar.divider()
+page = st.session_state["current_page"]
 
-st.sidebar.subheader("Portfolio Settings")
+st.divider()
 
-amount = st.sidebar.number_input(
-    "Investment amount",
-    min_value=10.0,
-    value=100.0,
-    step=10.0
-)
+st.session_state.setdefault("global_amount", 100.0)
+st.session_state.setdefault("global_risk", "Conservative")
 
-risk = st.sidebar.selectbox(
-    "Risk tolerance",
-    [
-        "Conservative",
-        "Moderate",
-        "Aggressive"
-    ]
-)
+amount = st.session_state["global_amount"]
+risk = st.session_state["global_risk"]
 
-st.sidebar.divider()
 
-st.sidebar.caption(
-    "Adjust your investment amount and risk tolerance "
-    "to explore different hypothetical portfolios."
-)
+def render_portfolio_settings():
+    settings_col1, settings_col2 = st.columns(2)
+
+    with settings_col1:
+        st.number_input(
+            "Investment amount",
+            min_value=10.0,
+            step=10.0,
+            key="global_amount"
+        )
+
+    with settings_col2:
+        st.selectbox(
+            "Risk tolerance",
+            [
+                "Conservative",
+                "Moderate",
+                "Aggressive"
+            ],
+            key="global_risk"
+        )
+
+    st.caption(
+        "Adjust your investment amount and risk tolerance "
+        "to explore different hypothetical portfolios."
+    )
+
+    st.divider()
 
 
 # =========================================================
@@ -1123,6 +1185,8 @@ def ticker_button(ticker, key_suffix, label=None):
 
 
 def line_chart_single(series, height=350, y_title="Value ($)"):
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
     df = pd.DataFrame({"Date": series.index, "Value": series.values})
     chart = (
         alt.Chart(df)
@@ -1161,11 +1225,13 @@ def line_chart_multi(df, height=400, y_title="Value ($)"):
 # OVERVIEW PAGE
 # =========================================================
 
-if page == "🏠 Overview":
+if page == "Overview":
 
     st.caption("PERSONAL PORTFOLIO ANALYTICS")
 
     st.title("Build. Analyze. Understand.")
+
+    render_portfolio_settings()
 
     st.write(
         "A simple portfolio research tool that helps "
@@ -1303,11 +1369,13 @@ if page == "🏠 Overview":
 # PORTFOLIO PAGE
 # =========================================================
 
-elif page == "💼 Portfolio":
+elif page == "Portfolio":
 
     st.caption("PORTFOLIO CONSTRUCTION")
 
     st.title("Your Portfolio")
+
+    render_portfolio_settings()
 
     st.write(
         f"Your **{risk.lower()}** portfolio distributes "
@@ -1431,11 +1499,13 @@ elif page == "💼 Portfolio":
 # PERFORMANCE PAGE
 # =========================================================
 
-elif page == "📈 Performance":
+elif page == "Performance":
 
     st.caption("HISTORICAL PERFORMANCE")
 
     st.title("Performance")
+
+    render_portfolio_settings()
 
     st.write(
         "See how your hypothetical portfolio would have "
@@ -1561,11 +1631,13 @@ elif page == "📈 Performance":
 # RISK PAGE
 # =========================================================
 
-elif page == "⚠️ Risk":
+elif page == "Risk":
 
     st.caption("PORTFOLIO RISK ANALYSIS")
 
     st.title("Understand Your Risk")
+
+    render_portfolio_settings()
 
     st.write(
         "Evaluate the historical volatility and downside "
@@ -1673,11 +1745,13 @@ elif page == "⚠️ Risk":
 # ETF RESEARCH PAGE
 # =========================================================
 
-elif page == "🔍 ETF Research":
+elif page == "ETF Research":
 
     st.caption("ETF RESEARCH")
 
     st.title("Explore Your ETFs")
+
+    render_portfolio_settings()
 
     st.write(
         "Learn what each ETF in your portfolio is designed "
@@ -1739,13 +1813,13 @@ elif page == "🔍 ETF Research":
     st.subheader("Historical Performance")
 
     etf_prices = yf.download(
-        selected_etf,
+        [selected_etf],
         period="5y",
         auto_adjust=True,
         progress=False
     )
 
-    etf_close = etf_prices["Close"]
+    etf_close = etf_prices["Close"][selected_etf]
 
     etf_returns = (
         etf_close
@@ -1828,205 +1902,334 @@ elif page == "🔍 ETF Research":
 # SCENARIO LAB PAGE
 # =========================================================
 
-elif page == "🧪 Scenario Lab":
+elif page == "Scenario Lab":
 
-    st.caption("WHAT-IF ANALYSIS")
+    st.caption("TRADING ARENA")
 
     st.title("Scenario Lab")
 
     st.write(
-        "Change the investment amount and risk profile "
-        "to explore how different hypothetical portfolios "
-        "would have performed historically."
+        "Trade real stocks with virtual cash, compete on the leaderboard, "
+        "and complete challenges for bonus points and cash."
     )
+
+    player_email = st.session_state["auth_email"]
+    player_name = st.session_state["auth_name"]
+
+    trading_player = tradingdb.get_or_create_player(player_email, player_name)
+    tradingdb.seed_default_challenges_if_empty()
+
+    try:
+        portfolio_value = tradingdb.get_portfolio_value_now(player_email)
+    except Exception:
+        portfolio_value = float(trading_player["cash_balance"])
+
+    starting_cash = float(trading_player["starting_cash"])
+    total_return_pct = (
+        (portfolio_value - starting_cash) / starting_cash * 100
+        if starting_cash else 0
+    )
+
+    try:
+        newly_completed = tradingdb.check_and_complete_challenges(player_email, portfolio_value)
+        if newly_completed:
+            trading_player = tradingdb.get_player(player_email)
+    except Exception:
+        newly_completed = []
+
+    for title in newly_completed:
+        st.success(f"Challenge completed: {title}! Reward added to your account.")
 
     st.divider()
 
     # ---------------------------------------------
-    # SCENARIO INPUTS
+    # PORTFOLIO SUMMARY
     # ---------------------------------------------
 
-    st.subheader("Build Your Scenario")
+    summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
 
-    scenario_col1, scenario_col2 = st.columns(2)
+    with summary_col1:
+        st.metric("Cash", f"${float(trading_player['cash_balance']):,.2f}")
 
-    with scenario_col1:
-
-        scenario_amount = st.number_input(
-            "Starting investment",
-            min_value=10.0,
-            value=100.0,
-            step=50.0,
-            key="scenario_amount"
-        )
-
-    with scenario_col2:
-
-        scenario_risk = st.selectbox(
-            "Risk profile",
-            [
-                "Conservative",
-                "Moderate",
-                "Aggressive"
-            ],
-            key="scenario_risk"
-        )
-
-    scenario_portfolio = portfolios[
-        scenario_risk
-    ]
-
-    st.divider()
-
-    # ---------------------------------------------
-    # SCENARIO DATA
-    # ---------------------------------------------
-
-    scenario_prices = yf.download(
-        list(scenario_portfolio.keys()),
-        period="5y",
-        auto_adjust=True,
-        progress=False
-    )
-
-    scenario_returns = (
-        scenario_prices["Close"]
-        .pct_change()
-        .dropna()
-    )
-
-    scenario_portfolio_returns = pd.Series(
-        0.0,
-        index=scenario_returns.index
-    )
-
-    for ticker, weight in scenario_portfolio.items():
-
-        scenario_portfolio_returns += (
-            scenario_returns[ticker]
-            * weight
-        )
-
-    scenario_growth = (
-        1 + scenario_portfolio_returns
-    ).cumprod()
-
-    scenario_final_value = (
-        scenario_amount
-        * scenario_growth.iloc[-1]
-    )
-
-    scenario_total_return = (
-        scenario_growth.iloc[-1] - 1
-    )
-
-    # ---------------------------------------------
-    # SCENARIO RESULTS
-    # ---------------------------------------------
-
-    st.subheader("Scenario Results")
-
-    result1, result2, result3 = st.columns(3)
-
-    with result1:
-
+    with summary_col2:
         st.metric(
-            "Starting Investment",
-            f"${scenario_amount:,.2f}"
+            "Portfolio Value",
+            f"${portfolio_value:,.2f}",
+            f"{total_return_pct:+.2f}%"
         )
 
-    with result2:
+    with summary_col3:
+        st.metric("Points", f"{float(trading_player['total_points']):,.0f}")
 
-        st.metric(
-            "Historical Ending Value",
-            f"${scenario_final_value:,.2f}"
-        )
-
-    with result3:
-
-        st.metric(
-            "Historical Return",
-            f"{scenario_total_return * 100:+.2f}%"
-        )
+    with summary_col4:
+        st.metric("Started Trading", trading_player["created_at"].strftime("%b %d, %Y"))
 
     st.divider()
 
     # ---------------------------------------------
-    # SCENARIO GROWTH
+    # PORTFOLIO GROWTH
     # ---------------------------------------------
 
-    st.subheader("Historical Scenario Growth")
+    st.subheader("Portfolio Growth")
 
-    scenario_value = (
-        scenario_growth
-        * scenario_amount
-    )
-
-    line_chart_single(scenario_value, height=400)
+    try:
+        trading_history = tradingdb.get_portfolio_history(player_email)
+        if len(trading_history) > 1:
+            line_chart_single(trading_history, height=350)
+        else:
+            st.info("Make a trade to start tracking your portfolio's growth over time.")
+    except Exception:
+        st.info("Portfolio history isn't available right now.")
 
     st.divider()
 
     # ---------------------------------------------
-    # SCENARIO ALLOCATION
+    # TRADE
     # ---------------------------------------------
 
-    st.subheader(
-        f"{scenario_risk} Allocation"
-    )
+    st.subheader("Trade")
 
-    scenario_allocation = pd.DataFrame(
-        {
-            "ETF": list(
-                scenario_portfolio.keys()
-            ),
+    trade_tab1, trade_tab2, trade_tab3 = st.tabs(["Buy", "Sell", "Holdings"])
 
-            "Allocation": [
-                weight * 100
-                for weight
-                in scenario_portfolio.values()
-            ],
+    with trade_tab1:
 
-            "Investment": [
-                scenario_amount * weight
-                for weight
-                in scenario_portfolio.values()
-            ]
-        }
-    )
+        sp500 = fetch_sp500_list()
+        sectors = sorted(set(sector for _, _, sector in sp500))
 
-    scenario_display = (
-        scenario_allocation.copy()
-    )
+        buy_sectors = st.multiselect(
+            "Filter by sector", sectors, placeholder="All sectors", key="trade_sector_filter"
+        )
 
-    scenario_display["Allocation"] = (
-        scenario_display["Allocation"]
-        .map(lambda x: f"{x:.0f}%")
-    )
+        filtered = [
+            (ticker, name) for ticker, name, sector in sp500
+            if not buy_sectors or sector in buy_sectors
+        ]
 
-    scenario_display["Investment"] = (
-        scenario_display["Investment"]
-        .map(lambda x: f"${x:,.2f}")
-    )
+        if not filtered:
+            st.info("No companies match the selected sector filter.")
+        else:
+            options = [f"{ticker} — {name}" for ticker, name in filtered]
 
-    st.dataframe(
-        scenario_display,
-        use_container_width=True,
-        hide_index=True
-    )
+            buy_col1, buy_col2 = st.columns([3, 1])
+
+            with buy_col1:
+                selected_buy_option = st.selectbox("Choose a stock", options, key="buy_stock_select")
+
+            buy_ticker = selected_buy_option.split(" — ")[0]
+
+            try:
+                buy_live_price = tradingdb.fetch_current_prices([buy_ticker]).get(buy_ticker)
+            except Exception:
+                buy_live_price = None
+
+            with buy_col2:
+                st.metric("Current Price", f"${buy_live_price:,.2f}" if buy_live_price else "N/A")
+
+            buy_shares = st.number_input(
+                "Shares to buy", min_value=0.0, value=1.0, step=1.0, key="buy_shares_input"
+            )
+
+            if buy_live_price and buy_shares > 0:
+                st.caption(f"Estimated cost: ${buy_shares * buy_live_price:,.2f}")
+
+            if st.button("Buy", type="primary", key="buy_button"):
+                if not buy_live_price:
+                    st.error("Couldn't fetch a live price for this stock. Try again in a moment.")
+                else:
+                    ok, msg = tradingdb.execute_buy(player_email, buy_ticker, buy_shares, buy_live_price)
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+    with trade_tab2:
+
+        my_holdings = tradingdb.get_holdings(player_email)
+
+        if not my_holdings:
+            st.info("You don't own any stocks yet — buy something first.")
+        else:
+            sell_options = [h["ticker"] for h in my_holdings]
+            sell_ticker = st.selectbox("Choose a holding", sell_options, key="sell_stock_select")
+
+            held_shares = next(
+                float(h["shares"]) for h in my_holdings if h["ticker"] == sell_ticker
+            )
+
+            try:
+                sell_live_price = tradingdb.fetch_current_prices([sell_ticker]).get(sell_ticker)
+            except Exception:
+                sell_live_price = None
+
+            sell_col1, sell_col2 = st.columns(2)
+
+            with sell_col1:
+                st.metric("Shares Held", f"{held_shares:.4f}")
+
+            with sell_col2:
+                st.metric("Current Price", f"${sell_live_price:,.2f}" if sell_live_price else "N/A")
+
+            sell_shares = st.number_input(
+                "Shares to sell", min_value=0.0, max_value=held_shares,
+                value=min(1.0, held_shares), step=1.0, key="sell_shares_input"
+            )
+
+            if sell_live_price and sell_shares > 0:
+                st.caption(f"Estimated proceeds: ${sell_shares * sell_live_price:,.2f}")
+
+            if st.button("Sell", type="primary", key="sell_button"):
+                if not sell_live_price:
+                    st.error("Couldn't fetch a live price for this stock. Try again in a moment.")
+                else:
+                    ok, msg = tradingdb.execute_sell(player_email, sell_ticker, sell_shares, sell_live_price)
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+    with trade_tab3:
+
+        my_holdings = tradingdb.get_holdings(player_email)
+
+        if not my_holdings:
+            st.info("No holdings yet.")
+        else:
+            holding_tickers = [h["ticker"] for h in my_holdings]
+
+            try:
+                current_prices = tradingdb.fetch_current_prices(holding_tickers)
+            except Exception:
+                current_prices = {}
+
+            for h in my_holdings:
+                ticker = h["ticker"]
+                shares = float(h["shares"])
+                avg_cost = float(h["avg_cost_basis"])
+                price = current_prices.get(ticker, avg_cost)
+                market_value = shares * price
+                gain_loss_pct = ((price - avg_cost) / avg_cost * 100) if avg_cost else 0
+
+                hcol1, hcol2, hcol3, hcol4 = st.columns([1, 1, 1, 1])
+
+                with hcol1:
+                    ticker_button(ticker, key_suffix="scenariolab_holdings")
+                    st.caption(f"{shares:.4f} shares")
+
+                with hcol2:
+                    st.write(f"Avg cost: ${avg_cost:,.2f}")
+                    st.write(f"Current: ${price:,.2f}")
+
+                with hcol3:
+                    st.write(f"Value: ${market_value:,.2f}")
+
+                with hcol4:
+                    st.write(f"{gain_loss_pct:+.2f}%")
+
+                st.divider()
 
     st.divider()
 
-    st.info(
-        "Scenario results are based on historical market "
-        "data and are intended for educational purposes only. "
-        "Past performance does not guarantee future results."
-    )
+    # ---------------------------------------------
+    # LEADERBOARD
+    # ---------------------------------------------
+
+    st.subheader("Leaderboard")
+
+    try:
+        leaderboard = tradingdb.compute_leaderboard()
+    except Exception:
+        leaderboard = []
+
+    if not leaderboard:
+        st.info("Leaderboard isn't available right now.")
+    else:
+        leaderboard_df = pd.DataFrame([
+            {
+                "Rank": r["rank"],
+                "Trader": r["display_name"],
+                "Portfolio Value": f"${r['total_value']:,.2f}",
+                "Return": f"{r['return_pct']:+.2f}%",
+                "Points": f"{r['total_points']:,.0f}",
+                "Started": r["started_at"].strftime("%b %d, %Y"),
+            }
+            for r in leaderboard
+        ])
+
+        st.dataframe(leaderboard_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # ---------------------------------------------
+    # CHALLENGES
+    # ---------------------------------------------
+
+    st.subheader("Challenges")
+
+    try:
+        active_challenges = tradingdb.get_active_challenges()
+    except Exception:
+        active_challenges = []
+
+    try:
+        my_participations = tradingdb.get_my_challenge_participations(player_email)
+    except Exception:
+        my_participations = []
+
+    joined_challenge_ids = {p["challenge_id"] for p in my_participations}
+
+    if not active_challenges:
+        st.info("No active challenges right now — check back soon.")
+    else:
+        for challenge in active_challenges:
+            cchcol1, cchcol2 = st.columns([3, 1])
+
+            with cchcol1:
+                st.markdown(f"**{challenge['title']}** ({challenge['period']})")
+                st.caption(challenge["description"])
+
+                reward_text = f"Reward: {float(challenge['reward_points']):.0f} points"
+                if float(challenge["reward_cash"]) > 0:
+                    reward_text += f" + ${float(challenge['reward_cash']):,.0f} cash"
+
+                st.caption(reward_text)
+                st.caption(f"Ends: {challenge['ends_at'].strftime('%b %d, %Y')}")
+
+            with cchcol2:
+                if challenge["id"] in joined_challenge_ids:
+                    st.success("Joined")
+                else:
+                    if st.button("Join Challenge", key=f"join_challenge_{challenge['id']}"):
+                        tradingdb.join_challenge(challenge["id"], player_email, portfolio_value)
+                        st.rerun()
+
+            st.divider()
+
+    if my_participations:
+        st.write("**Your Challenge History**")
+
+        history_df = pd.DataFrame([
+            {
+                "Challenge": p["title"],
+                "Started": p["joined_at"].strftime("%b %d, %Y"),
+                "Money Invested": f"${float(p['starting_value']):,.2f}",
+                "Return Since Start": (
+                    f"{((portfolio_value - float(p['starting_value'])) / float(p['starting_value']) * 100):+.2f}%"
+                    if float(p["starting_value"]) else "N/A"
+                ),
+                "Status": "Completed" if p["completed"] else "In Progress",
+            }
+            for p in my_participations
+        ])
+
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # =========================================================
 # ABOUT PAGE
 # =========================================================
 
-elif page == "ℹ️ About":
+elif page == "About":
 
     st.caption("ABOUT PORTFOLIOLAB")
 
@@ -2079,7 +2282,7 @@ elif page == "ℹ️ About":
 
     with about_col1:
 
-        st.markdown("### 💼 Build a Portfolio")
+        st.markdown("### Build a Portfolio")
 
         st.write(
             "Explore Conservative, Moderate, and Aggressive "
@@ -2087,14 +2290,14 @@ elif page == "ℹ️ About":
             "diversified ETFs."
         )
 
-        st.markdown("### 📈 Analyze Performance")
+        st.markdown("### Analyze Performance")
 
         st.write(
             "Compare hypothetical portfolio performance "
             "with the S&P 500 over historical periods."
         )
 
-        st.markdown("### 🔍 Research ETFs")
+        st.markdown("### Research ETFs")
 
         st.write(
             "Learn what individual ETFs are designed to "
@@ -2104,14 +2307,14 @@ elif page == "ℹ️ About":
 
     with about_col2:
 
-        st.markdown("### ⚠️ Understand Risk")
+        st.markdown("### Understand Risk")
 
         st.write(
             "Explore volatility, maximum drawdown, and a "
             "simplified portfolio risk score."
         )
 
-        st.markdown("### 🧪 Run Scenarios")
+        st.markdown("### Run Scenarios")
 
         st.write(
             "Change investment amounts and risk profiles "
@@ -2119,7 +2322,7 @@ elif page == "ℹ️ About":
             "would have changed."
         )
 
-        st.markdown("### 📊 Compare Decisions")
+        st.markdown("### Compare Decisions")
 
         st.write(
             "Use historical data to explore how different "

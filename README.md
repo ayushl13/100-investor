@@ -25,6 +25,14 @@ streamlit run app.py
 
 Either way, it'll open automatically in your browser (usually `http://localhost:8501`).
 
+**One-time extra step for the Scenario Lab (trading arena) to work:** the leaderboard/challenges are shared between everyone using the app, backed by a real database. Create a file at `.streamlit/secrets.toml` inside the project folder (this file is gitignored — it never gets pushed to GitHub, and you'll never see it after pulling) with this content:
+
+```toml
+DATABASE_URL = "ask Aayush for this connection string directly (text/DM, not GitHub)"
+```
+
+Without this file, every page except Scenario Lab works fine — Scenario Lab specifically needs it.
+
 ## What it does
 
 - Sign up / sign in to use it (accounts are stored locally, passwords are hashed — never saved in plain text)
@@ -33,7 +41,7 @@ Either way, it'll open automatically in your browser (usually `http://localhost:
 - See how much your money would've grown historically, compared against the S&P 500
 - Look at risk stuff: volatility, max drawdown, a simplified risk score
 - Click into any ticker (ETF or stock you added) to see its price chart (day/week/month/year/YTD) plus key stats
-- Run a "what-if" scenario with a different amount/risk profile without messing with your main settings
+- **Scenario Lab is a full trading simulator**: start with $100,000 in virtual cash, buy/sell real stocks at live prices, track your portfolio's growth over time, compete on a shared leaderboard, and complete daily/weekly challenges for bonus points and cash
 
 Everything is historical simulation — not investment advice, just a way to learn.
 
@@ -44,6 +52,7 @@ Everything is historical simulation — not investment advice, just a way to lea
 - `pandas` for the return/growth math
 - Altair for the charts (so the y-axis actually zooms into price movement instead of flattening everything to zero)
 - A live-fetched, cached list of S&P 500 companies (pulled from Wikipedia) powers the "add a stock" dropdown
+- Postgres (Neon, shared/hosted) backs the Scenario Lab trading engine — accounts, holdings, trades, and challenges live there so the leaderboard is shared across everyone running the app
 
 ## Why
 
