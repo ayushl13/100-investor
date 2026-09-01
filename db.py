@@ -2,7 +2,7 @@ import streamlit as st
 import psycopg2
 import yfinance as yf
 import pandas as pd
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -110,6 +110,27 @@ def clear_session_token(email):
             "UPDATE trading.users SET session_token = NULL WHERE email = %s",
             (email.strip().lower(),)
         )
+
+
+def save_portfolio_settings(email, investment_amount, risk_tolerance, custom_holdings):
+    with db_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            UPDATE trading.users
+            SET investment_amount = %s, risk_tolerance = %s, custom_holdings = %s
+            WHERE email = %s
+            """,
+            (investment_amount, risk_tolerance, Json(custom_holdings), email.strip().lower())
+        )
+
+
+def get_portfolio_settings(email):
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT investment_amount, risk_tolerance, custom_holdings FROM trading.users WHERE email = %s",
+            (email.strip().lower(),)
+        )
+        return cur.fetchone()
 
 
 # =========================================================

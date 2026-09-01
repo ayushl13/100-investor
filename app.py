@@ -537,6 +537,53 @@ def clear_session_token(email):
     tradingdb.clear_session_token(email)
 
 
+def remember_token_in_browser(token):
+    components.html(
+        f"""
+        <script>
+        try {{
+            window.parent.localStorage.setItem('portfoliolab_token', '{token}');
+        }} catch (err) {{}}
+        </script>
+        """,
+        height=0
+    )
+
+
+def forget_token_in_browser():
+    components.html(
+        """
+        <script>
+        try {
+            window.parent.localStorage.removeItem('portfoliolab_token');
+        } catch (err) {}
+        </script>
+        """,
+        height=0
+    )
+
+
+def restore_token_from_browser():
+    components.html(
+        """
+        <script>
+        try {
+            var win = window.parent;
+            var token = win.localStorage.getItem('portfoliolab_token');
+            if (token) {
+                var url = new URL(win.location.href);
+                if (url.searchParams.get('token') !== token) {
+                    url.searchParams.set('token', token);
+                    win.location.replace(url.toString());
+                }
+            }
+        } catch (err) {}
+        </script>
+        """,
+        height=0
+    )
+
+
 PASSWORD_STRENGTH_COLORS = ["#dc2626", "#ea580c", "#eab308", "#16a34a"]
 
 
@@ -703,7 +750,9 @@ def render_sign_in_form():
                 st.session_state["auth_logged_in"] = True
                 st.session_state["auth_name"] = name
                 st.session_state["auth_email"] = email.strip().lower()
-                st.query_params["token"] = create_session_token(email)
+                token = create_session_token(email)
+                st.query_params["token"] = token
+                remember_token_in_browser(token)
                 st.rerun()
             else:
                 st.error("Incorrect email or password.")
@@ -734,7 +783,9 @@ def render_sign_up_form():
                 st.session_state["auth_logged_in"] = True
                 st.session_state["auth_name"] = name.strip()
                 st.session_state["auth_email"] = email.strip().lower()
-                st.query_params["token"] = create_session_token(email)
+                token = create_session_token(email)
+                st.query_params["token"] = token
+                remember_token_in_browser(token)
                 st.rerun()
             else:
                 st.error(message)
@@ -767,6 +818,9 @@ def render_auth_screen():
 if "auth_logged_in" not in st.session_state:
     st.session_state["auth_logged_in"] = False
 
+if not st.session_state["auth_logged_in"] and not st.query_params.get("token"):
+    restore_token_from_browser()
+
 if not st.session_state["auth_logged_in"]:
     token_result = validate_session_token(st.query_params.get("token"))
     if token_result:
@@ -778,6 +832,17 @@ if not st.session_state["auth_logged_in"]:
 if not st.session_state["auth_logged_in"]:
     render_auth_screen()
     st.stop()
+
+if not st.session_state.get("settings_loaded_from_db"):
+    saved_settings = tradingdb.get_portfolio_settings(st.session_state["auth_email"])
+    if saved_settings:
+        if saved_settings["investment_amount"] is not None:
+            st.session_state["global_amount"] = float(saved_settings["investment_amount"])
+        if saved_settings["risk_tolerance"] is not None:
+            st.session_state["global_risk"] = saved_settings["risk_tolerance"]
+        if saved_settings["custom_holdings"] is not None:
+            st.session_state["custom_holdings"] = saved_settings["custom_holdings"]
+    st.session_state["settings_loaded_from_db"] = True
 
 
 # =========================================================
@@ -852,6 +917,7 @@ with st.container(key="topright_account"):
         st.rerun()
     if st.button("Log out", type="tertiary", key="top_logout"):
         clear_session_token(st.session_state.get("auth_email"))
+        forget_token_in_browser()
         st.session_state["auth_logged_in"] = False
         if "token" in st.query_params:
             del st.query_params["token"]
@@ -899,6 +965,15 @@ amount = st.session_state["global_amount"]
 risk = st.session_state["global_risk"]
 
 
+def save_current_portfolio_settings():
+    tradingdb.save_portfolio_settings(
+        st.session_state["auth_email"],
+        st.session_state["global_amount"],
+        st.session_state["global_risk"],
+        st.session_state["custom_holdings"],
+    )
+
+
 def render_portfolio_settings():
     settings_col1, settings_col2 = st.columns(2)
 
@@ -907,7 +982,8 @@ def render_portfolio_settings():
             "Investment amount",
             min_value=10.0,
             step=10.0,
-            key="global_amount"
+            key="global_amount",
+            on_change=save_current_portfolio_settings
         )
 
     with settings_col2:
@@ -918,7 +994,8 @@ def render_portfolio_settings():
                 "Moderate",
                 "Aggressive"
             ],
-            key="global_risk"
+            key="global_risk",
+            on_change=save_current_portfolio_settings
         )
 
     st.caption(
@@ -1230,6 +1307,7 @@ def render_add_stock_section():
             st.session_state["custom_holdings"][ticker] = (
                 st.session_state["custom_holdings"].get(ticker, 0) + stock_amount
             )
+            save_current_portfolio_settings()
             st.rerun()
 
     if st.session_state["custom_holdings"]:
@@ -1247,6 +1325,7 @@ def render_add_stock_section():
             with remove_col3:
                 if st.button("Remove", key=f"remove_custom_{ticker}", type="tertiary"):
                     del st.session_state["custom_holdings"][ticker]
+                    save_current_portfolio_settings()
                     st.rerun()
 
     st.divider()
