@@ -420,6 +420,16 @@ html, body {
     transform: scale(0.97);
 }
 
+/* Ticker "heading" buttons (What You Own, Scenario Lab Holdings): bigger,
+   flush-left so they line up with the description text stacked underneath */
+[class*="st-key-tickerhead_"] button {
+    padding-left: 0 !important;
+    font-size: 1.15rem !important;
+}
+[class*="st-key-tickerhead_"] button p {
+    font-size: 1.15rem !important;
+}
+
 /* Font scale: proportional to each element's importance */
 h1 {
     font-size: 2.4rem !important;
@@ -1344,9 +1354,14 @@ def ticker_dialog(ticker):
     st.caption(get_ticker_display_info(ticker)["focus"])
 
 
-def ticker_button(ticker, key_suffix, label=None):
-    if st.button(label or ticker, key=f"tkr_{ticker}_{key_suffix}", type="tertiary"):
-        ticker_dialog(ticker)
+def ticker_button(ticker, key_suffix, label=None, heading=False):
+    if heading:
+        with st.container(key=f"tickerhead_{key_suffix}_{ticker}"):
+            if st.button(label or ticker, key=f"tkr_{ticker}_{key_suffix}", type="tertiary"):
+                ticker_dialog(ticker)
+    else:
+        if st.button(label or ticker, key=f"tkr_{ticker}_{key_suffix}", type="tertiary"):
+            ticker_dialog(ticker)
 
 
 def extract_close_series(prices_df, ticker):
@@ -1705,7 +1720,7 @@ elif page == "Portfolio":
 
         info = get_ticker_display_info(ticker)
 
-        ticker_button(ticker, key_suffix="whatyouown", label=f"**{ticker}**")
+        ticker_button(ticker, key_suffix="whatyouown", label=f"**{ticker}**", heading=True)
 
         st.markdown(
             f"<div style='font-size:1.05rem; line-height:1.55; color:#FAFAFA; "
@@ -2344,7 +2359,7 @@ elif page == "Scenario Lab":
                 hcol1, hcol2, hcol3, hcol4 = st.columns([1, 1, 1, 1])
 
                 with hcol1:
-                    ticker_button(ticker, key_suffix="scenariolab_holdings")
+                    ticker_button(ticker, key_suffix="scenariolab_holdings", heading=True)
                     st.caption(f"{shares:.4f} shares")
 
                 with hcol2:
