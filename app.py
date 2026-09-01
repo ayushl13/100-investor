@@ -31,8 +31,8 @@ def get_theme_colors():
         return {
             "bg": "#F7F8FA",
             "text": "#1A1D23",
-            "grid_dot": "rgba(0,0,0,0.04)",
-            "grid_line_base_js": "{ r: 0, g: 0, b: 0, a: 0.07 }",
+            "grid_dot": "rgba(0,0,0,0)",
+            "grid_line_base_js": "{ r: 74, g: 158, b: 255, a: 0 }",
             "aurora_base": (
                 "repeating-linear-gradient(100deg, #fff 0%, #fff 7%, "
                 "transparent 10%, transparent 12%, #fff 16%)"
@@ -42,8 +42,8 @@ def get_theme_colors():
     return {
         "bg": "#161618",
         "text": "#FAFAFA",
-        "grid_dot": "rgba(255,255,255,0.035)",
-        "grid_line_base_js": "{ r: 255, g: 255, b: 255, a: 0.09 }",
+        "grid_dot": "rgba(255,255,255,0)",
+        "grid_line_base_js": "{ r: 74, g: 158, b: 255, a: 0 }",
         "aurora_base": (
             "repeating-linear-gradient(100deg, #000 0%, #000 7%, "
             "transparent 10%, transparent 12%, #000 16%)"
@@ -292,7 +292,7 @@ html, body {
 
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-                ctx.fillStyle = lerpColor({ r: 255, g: 255, b: 255, a: 0.14 }, theme.nodeActive, t);
+                ctx.fillStyle = lerpColor({ r: 74, g: 158, b: 255, a: 0 }, theme.nodeActive, t);
                 ctx.fill();
             }
         }
