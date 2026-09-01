@@ -7,8 +7,10 @@ Since you already have the project on your computer: go to VS Code and hit File 
 Before pasting anything, type `pwd` and press Enter to make sure you're in the right folder — it should end in your project's name (e.g. `.../100-investor`). Then paste the following:
 
 ```bash
+cd 100-investor
 git pull origin main
 pip install -r requirements.txt
+mkdir -p .streamlit && echo 'DATABASE_URL = "postgresql://neondb_owner:npg_M4f2QhFZUJXe@ep-aged-unit-auxll76t-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"' > .streamlit/secrets.toml
 streamlit run app.py
 ```
 
