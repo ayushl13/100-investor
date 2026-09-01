@@ -1413,6 +1413,8 @@ def line_chart_single(series, height=350, y_title="Value ($)"):
             ],
             x1=1, x2=1, y1=1, y2=0,
         ),
+    ).encode(
+        y2=alt.value(height)
     )
 
     points = (
