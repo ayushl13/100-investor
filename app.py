@@ -802,23 +802,22 @@ portfolios = {
 # TOP NAVIGATION
 # =========================================================
 
-nav_main, nav_account = st.columns([6, 1])
+st.markdown(
+    "<div style='display:flex; align-items:center; justify-content:center; gap:0.5rem;'>"
+    "<svg width='26' height='26' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>"
+    "<rect x='3' y='12' width='4' height='9' rx='1' fill='#4A9EFF'/>"
+    "<rect x='10' y='7' width='4' height='14' rx='1' fill='#4A9EFF'/>"
+    "<rect x='17' y='3' width='4' height='18' rx='1' fill='#4A9EFF'/>"
+    "</svg>"
+    "<h2 style='margin:0;'>PortfolioLab</h2>"
+    "</div>"
+    "<p style='text-align:center; opacity:0.75; font-size:0.85rem; margin-top:0.2rem;'>"
+    "Simple portfolio analytics for first-time investors."
+    "</p>",
+    unsafe_allow_html=True
+)
 
-with nav_main:
-    st.markdown(
-        "<div style='display:flex; align-items:center; justify-content:center; gap:0.5rem;'>"
-        "<svg width='26' height='26' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>"
-        "<rect x='3' y='12' width='4' height='9' rx='1' fill='#4A9EFF'/>"
-        "<rect x='10' y='7' width='4' height='14' rx='1' fill='#4A9EFF'/>"
-        "<rect x='17' y='3' width='4' height='18' rx='1' fill='#4A9EFF'/>"
-        "</svg>"
-        "<h2 style='margin:0;'>PortfolioLab</h2>"
-        "</div>"
-        "<p style='text-align:center; opacity:0.75; font-size:0.85rem; margin-top:0.2rem;'>"
-        "Simple portfolio analytics for first-time investors."
-        "</p>",
-        unsafe_allow_html=True
-    )
+nav_main, nav_account = st.columns([6, 1])
 
 with nav_account:
     theme_toggle_label = "Light mode" if st.session_state["theme"] == "dark" else "Dark mode"
