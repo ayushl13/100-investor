@@ -1398,7 +1398,7 @@ def line_chart_single(series, height=350, y_title="Value ($)"):
         .mark_line(color="#4A9EFF", strokeWidth=2, interpolate="monotone")
         .encode(
             x=alt.X("Date:T", title=None),
-            y=alt.Y("Value:Q", title=y_title, scale=alt.Scale(zero=False)),
+            y=alt.Y("Value:Q", title=y_title, scale=alt.Scale(zero=False), stack=None),
         )
     )
 
