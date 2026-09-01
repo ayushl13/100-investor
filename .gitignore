@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .DS_Store
-users.json
 ayushlalhandoff.md
 .streamlit/secrets.toml
+.agents/
+.claude/
+skills-lock.json

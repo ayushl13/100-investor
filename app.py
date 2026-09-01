@@ -4,8 +4,6 @@ import yfinance as yf
 import pandas as pd
 import altair as alt
 import hashlib
-import json
-import os
 import secrets
 import db as tradingdb
 
@@ -25,10 +23,44 @@ st.set_page_config(
 # CUSTOM STYLING
 # =========================================================
 
-KINETIC_GRID_JS = r"""
+st.session_state.setdefault("theme", "dark")
+
+
+def get_theme_colors():
+    if st.session_state["theme"] == "light":
+        return {
+            "bg": "#F7F8FA",
+            "text": "#1A1D23",
+            "grid_dot": "rgba(0,0,0,0.04)",
+            "grid_line_base_js": "{ r: 0, g: 0, b: 0, a: 0.07 }",
+            "aurora_base": (
+                "repeating-linear-gradient(100deg, #fff 0%, #fff 7%, "
+                "transparent 10%, transparent 12%, #fff 16%)"
+            ),
+            "aurora_invert": "1",
+        }
+    return {
+        "bg": "#161618",
+        "text": "#FAFAFA",
+        "grid_dot": "rgba(255,255,255,0.035)",
+        "grid_line_base_js": "{ r: 255, g: 255, b: 255, a: 0.09 }",
+        "aurora_base": (
+            "repeating-linear-gradient(100deg, #000 0%, #000 7%, "
+            "transparent 10%, transparent 12%, #000 16%)"
+        ),
+        "aurora_invert": "0",
+    }
+
+
+AURORA_COLOR_GRADIENT = (
+    "repeating-linear-gradient(100deg, #3b82f6 10%, #a5b4fc 15%, "
+    "#93c5fd 20%, #ddd6fe 25%, #60a5fa 30%)"
+)
+
+KINETIC_GRID_TEMPLATE = r"""
 <style>
 html, body {
-    background: #161618 !important;
+    background: transparent !important;
     margin: 0;
     overflow: hidden;
 }
@@ -41,12 +73,12 @@ html, body {
     var MAX_WARP = 22;
     var DOT_SPACING = 28;
     var LERP_SPEED = 0.12;
-    var LINE_BASE = { r: 255, g: 255, b: 255, a: 0.13 };
+    var LINE_BASE = __LINE_BASE__;
     var NODE_BASE_RADIUS = 1.8;
     var NODE_ACTIVE_RADIUS = 3.2;
+    var DOT_COLOR = '__DOT_COLOR__';
 
     var theme = {
-        bg: '#161618',
         lineActive: { r: 74, g: 158, b: 255, a: 0.9 },
         nodeActive: { r: 74, g: 158, b: 255, a: 1.0 },
         glow: '74,158,255',
@@ -172,10 +204,8 @@ html, body {
     function draw(now) {
         var W = size.w, H = size.h;
         ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = theme.bg;
-        ctx.fillRect(0, 0, W, H);
 
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillStyle = DOT_COLOR;
         for (var x = DOT_SPACING / 2; x < W; x += DOT_SPACING) {
             for (var y = DOT_SPACING / 2; y < H; y += DOT_SPACING) {
                 ctx.beginPath();
@@ -262,7 +292,7 @@ html, body {
 
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-                ctx.fillStyle = lerpColor({ r: 255, g: 255, b: 255, a: 0.2 }, theme.nodeActive, t);
+                ctx.fillStyle = lerpColor({ r: 255, g: 255, b: 255, a: 0.14 }, theme.nodeActive, t);
                 ctx.fill();
             }
         }
@@ -288,8 +318,22 @@ html, body {
 """
 
 
-BACKGROUND_CSS = """
+BACKGROUND_CSS_TEMPLATE = """
 <style>
+:root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --dur-fast: 140ms;
+    --dur-base: 200ms;
+    --dur-page: 260ms;
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 iframe {
     position: fixed !important;
     top: 0 !important;
@@ -301,13 +345,14 @@ iframe {
     border: none !important;
 }
 html, body {
-    background: #161618 !important;
+    background: __BG__ !important;
 }
 [data-testid="stAppViewContainer"],
 [data-testid="stHeader"],
 [data-testid="stMain"],
 .stApp {
     background: transparent !important;
+    color: __TEXT__ !important;
 }
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {
     display: none !important;
@@ -316,24 +361,71 @@ html, body {
     display: none !important;
 }
 
+/* Aurora background (Aceternity/21st.dev "Aurora Background", hand-ported to vanilla CSS) */
+.aurora-bg {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: -2;
+    pointer-events: none;
+    background-image: __AURORA_BASE__, __AURORA_COLOR__;
+    background-size: 300%, 200%;
+    background-position: 50% 50%, 50% 50%;
+    opacity: 0.5;
+    filter: blur(10px) invert(__AURORA_INVERT__);
+    will-change: transform;
+    mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
+}
+.aurora-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: __AURORA_BASE__, __AURORA_COLOR__;
+    background-size: 200%, 100%;
+    background-attachment: fixed;
+    mix-blend-mode: difference;
+    animation: aurora 60s linear infinite;
+}
+@keyframes aurora {
+    from { background-position: 50% 50%, 50% 50%; }
+    to   { background-position: 350% 50%, 350% 50%; }
+}
+
 /* Layout: centered content with breathing room on both sides */
 .block-container {
     max-width: 1280px !important;
     margin: 0 auto !important;
     padding-top: 2rem !important;
+    animation: pageIn var(--dur-page) var(--ease-out) both;
+}
+@keyframes pageIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Slightly tighter button padding so nav labels fit on one line */
+/* Button feedback: hover-lift + press-scale, per the animate/RECIPES.md button-press pattern */
 [data-testid="stButton"] button {
     padding-left: 0.6rem !important;
     padding-right: 0.6rem !important;
     white-space: nowrap !important;
+    transition: transform var(--dur-fast) var(--ease-out),
+                background-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+}
+[data-testid="stButton"] button:hover {
+    transform: translateY(-1px);
+}
+[data-testid="stButton"] button:active {
+    transform: scale(0.97);
 }
 
 /* Font scale: proportional to each element's importance */
 h1 {
     font-size: 2.4rem !important;
     font-weight: 700 !important;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
 }
 h2 {
     font-size: 1.6rem !important;
@@ -350,6 +442,7 @@ h3 {
 [data-testid="stMetricValue"] {
     font-size: 1.6rem !important;
     font-weight: 700 !important;
+    letter-spacing: -0.01em;
 }
 [data-testid="stMetricLabel"] {
     font-size: 0.8rem !important;
@@ -360,9 +453,31 @@ h3 {
 </style>
 """
 
+
+def get_background_css(colors):
+    return (
+        BACKGROUND_CSS_TEMPLATE
+        .replace("__BG__", colors["bg"])
+        .replace("__TEXT__", colors["text"])
+        .replace("__AURORA_BASE__", colors["aurora_base"])
+        .replace("__AURORA_COLOR__", AURORA_COLOR_GRADIENT)
+        .replace("__AURORA_INVERT__", colors["aurora_invert"])
+    )
+
+
+def get_kinetic_grid_js(colors):
+    return (
+        KINETIC_GRID_TEMPLATE
+        .replace("__LINE_BASE__", colors["grid_line_base_js"])
+        .replace("__DOT_COLOR__", colors["grid_dot"])
+    )
+
+
 def render_kinetic_grid_background():
-    st.markdown(BACKGROUND_CSS, unsafe_allow_html=True)
-    components.html(KINETIC_GRID_JS, height=0)
+    colors = get_theme_colors()
+    st.markdown(get_background_css(colors), unsafe_allow_html=True)
+    st.markdown('<div class="aurora-bg"></div>', unsafe_allow_html=True)
+    components.html(get_kinetic_grid_js(colors), height=0)
 
 render_kinetic_grid_background()
 
@@ -371,21 +486,6 @@ render_kinetic_grid_background()
 # AUTHENTICATION
 # =========================================================
 
-USERS_FILE = "users.json"
-
-
-def load_users():
-    if not os.path.exists(USERS_FILE):
-        return {}
-    with open(USERS_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
-
-
 def hash_password(password, salt):
     return hashlib.pbkdf2_hmac(
         "sha256", password.encode(), salt.encode(), 100_000
@@ -393,28 +493,13 @@ def hash_password(password, salt):
 
 
 def create_user(name, email, password):
-    users = load_users()
-    email_key = email.strip().lower()
-
-    if email_key in users:
-        return False, "An account with this email already exists."
-
     salt = secrets.token_hex(16)
-
-    users[email_key] = {
-        "name": name.strip(),
-        "salt": salt,
-        "password_hash": hash_password(password, salt)
-    }
-
-    save_users(users)
-    return True, "Account created."
+    password_hash = hash_password(password, salt)
+    return tradingdb.create_user(name, email, salt, password_hash)
 
 
 def authenticate(email, password):
-    users = load_users()
-    email_key = email.strip().lower()
-    user = users.get(email_key)
+    user = tradingdb.get_user_by_email(email)
 
     if not user:
         return False, None
@@ -426,37 +511,20 @@ def authenticate(email, password):
 
 
 def create_session_token(email):
-    users = load_users()
-    email_key = email.strip().lower()
     token = secrets.token_urlsafe(32)
-    users[email_key]["session_token"] = token
-    save_users(users)
+    tradingdb.set_session_token(email, token)
     return token
 
 
 def validate_session_token(token):
-    if not token:
+    user = tradingdb.get_user_by_session_token(token)
+    if not user:
         return None
-
-    users = load_users()
-
-    for email_key, user in users.items():
-        if user.get("session_token") == token:
-            return email_key, user["name"]
-
-    return None
+    return user["email"], user["name"]
 
 
 def clear_session_token(email):
-    if not email:
-        return
-
-    users = load_users()
-    email_key = email.strip().lower()
-
-    if email_key in users and "session_token" in users[email_key]:
-        del users[email_key]["session_token"]
-        save_users(users)
+    tradingdb.clear_session_token(email)
 
 
 PASSWORD_STRENGTH_COLORS = ["#dc2626", "#ea580c", "#eab308", "#16a34a"]
@@ -583,7 +651,7 @@ def render_auth_quote_panel(mode):
     st.markdown(
         f"""
         <div style='position:relative; height:100%; min-height:480px; border-radius:16px;
-                    overflow:hidden;'>
+                    overflow:hidden; animation: pageIn 340ms var(--ease-out, ease-out) both;'>
             <img src="{NYSE_PHOTO_URL}"
                  style='position:absolute; inset:0; width:100%; height:100%;
                         object-fit:cover; z-index:0;'>
@@ -753,6 +821,10 @@ with nav_main:
     )
 
 with nav_account:
+    theme_toggle_label = "Light mode" if st.session_state["theme"] == "dark" else "Dark mode"
+    if st.button(theme_toggle_label, type="tertiary", key="theme_toggle"):
+        st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
+        st.rerun()
     if st.button("Log out", type="tertiary", key="top_logout"):
         clear_session_token(st.session_state.get("auth_email"))
         st.session_state["auth_logged_in"] = False
@@ -1289,15 +1361,43 @@ def line_chart_single(series, height=350, y_title="Value ($)"):
     if isinstance(series, pd.DataFrame):
         series = series.iloc[:, 0]
     df = pd.DataFrame({"Date": series.index, "Value": series.values})
-    chart = (
+
+    nearest = alt.selection_point(on="mouseover", nearest=True, fields=["Date"], empty=False)
+
+    line = (
         alt.Chart(df)
-        .mark_line(color="#4A9EFF", strokeWidth=2)
+        .mark_line(color="#4A9EFF", strokeWidth=2, interpolate="monotone")
         .encode(
             x=alt.X("Date:T", title=None),
             y=alt.Y("Value:Q", title=y_title, scale=alt.Scale(zero=False)),
+        )
+    )
+
+    area = line.mark_area(
+        interpolate="monotone",
+        line=False,
+        color=alt.Gradient(
+            gradient="linear",
+            stops=[
+                alt.GradientStop(color="rgba(74,158,255,0.35)", offset=0),
+                alt.GradientStop(color="rgba(74,158,255,0)", offset=1),
+            ],
+            x1=1, x2=1, y1=1, y2=0,
+        ),
+    )
+
+    points = (
+        line.mark_point(size=45, color="#4A9EFF", filled=True)
+        .encode(
+            opacity=alt.condition(nearest, alt.value(1), alt.value(0)),
             tooltip=[alt.Tooltip("Date:T", title="Date"), alt.Tooltip("Value:Q", title="Value", format=",.2f")]
         )
-        .properties(height=height)
+        .add_params(nearest)
+    )
+
+    chart = (
+        (area + line + points)
+        .properties(height=height, padding={"left": 5, "right": 5, "top": 5, "bottom": 28})
     )
     st.altair_chart(chart, use_container_width=True)
 
@@ -1308,16 +1408,31 @@ def line_chart_multi(df, height=400, y_title="Value ($)"):
         for col in df.columns
     ]
     long_df = pd.concat(frames, ignore_index=True)
-    chart = (
+
+    nearest = alt.selection_point(on="mouseover", nearest=True, fields=["Date"], empty=False)
+
+    line = (
         alt.Chart(long_df)
-        .mark_line(strokeWidth=2)
+        .mark_line(strokeWidth=2, interpolate="monotone")
         .encode(
             x=alt.X("Date:T", title=None),
             y=alt.Y("Value:Q", title=y_title, scale=alt.Scale(zero=False)),
             color=alt.Color("Series:N", title=None),
+        )
+    )
+
+    points = (
+        line.mark_point(size=45, filled=True)
+        .encode(
+            opacity=alt.condition(nearest, alt.value(1), alt.value(0)),
             tooltip=["Date:T", "Series:N", alt.Tooltip("Value:Q", title="Value", format=",.2f")]
         )
-        .properties(height=height)
+        .add_params(nearest)
+    )
+
+    chart = (
+        (line + points)
+        .properties(height=height, padding={"left": 5, "right": 5, "top": 5, "bottom": 28})
     )
     st.altair_chart(chart, use_container_width=True)
 

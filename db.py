@@ -60,6 +60,59 @@ def get_all_players():
 
 
 # =========================================================
+# USERS / AUTH
+# =========================================================
+
+def create_user(name, email, salt, password_hash):
+    email_key = email.strip().lower()
+    with db_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            INSERT INTO trading.users (email, name, salt, password_hash)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (email) DO NOTHING
+            RETURNING email
+            """,
+            (email_key, name.strip(), salt, password_hash)
+        )
+        if cur.fetchone() is None:
+            return False, "An account with this email already exists."
+        return True, "Account created."
+
+
+def get_user_by_email(email):
+    with db_cursor() as cur:
+        cur.execute("SELECT * FROM trading.users WHERE email = %s", (email.strip().lower(),))
+        return cur.fetchone()
+
+
+def set_session_token(email, token):
+    with db_cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE trading.users SET session_token = %s WHERE email = %s",
+            (token, email.strip().lower())
+        )
+
+
+def get_user_by_session_token(token):
+    if not token:
+        return None
+    with db_cursor() as cur:
+        cur.execute("SELECT * FROM trading.users WHERE session_token = %s", (token,))
+        return cur.fetchone()
+
+
+def clear_session_token(email):
+    if not email:
+        return
+    with db_cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE trading.users SET session_token = NULL WHERE email = %s",
+            (email.strip().lower(),)
+        )
+
+
+# =========================================================
 # HOLDINGS
 # =========================================================
 

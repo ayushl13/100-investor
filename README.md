@@ -35,7 +35,7 @@ Without this file, every page except Scenario Lab works fine — Scenario Lab sp
 
 ## What it does
 
-- Sign up / sign in to use it (accounts are stored locally, passwords are hashed — never saved in plain text; staying signed in survives a page reload)
+- Sign up / sign in to use it (accounts are shared across everyone using the app via the same database backing Scenario Lab, passwords are hashed — never saved in plain text; staying signed in survives a page reload)
 - Pick a portfolio (Conservative, Moderate, Aggressive) made of a few ETFs — VOO, QQQ, VXUS, BND
 - Add your own individual stocks on top of that, picked from the full current S&P 500 list, filterable by sector
 - See how much your money would've grown historically, compared against the S&P 500
