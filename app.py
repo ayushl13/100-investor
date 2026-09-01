@@ -817,9 +817,25 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-nav_main, nav_account = st.columns([6, 1])
+st.markdown(
+    """
+    <style>
+    .st-key-topright_account {
+        position: fixed;
+        top: 1.1rem;
+        right: 1.75rem;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.15rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-with nav_account:
+with st.container(key="topright_account"):
     theme_toggle_label = "Light mode" if st.session_state["theme"] == "dark" else "Dark mode"
     if st.button(theme_toggle_label, type="tertiary", key="theme_toggle"):
         st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
@@ -844,20 +860,19 @@ NAV_OPTIONS = [
     "About"
 ]
 
-with nav_main:
-    nav_cols = st.columns(len(NAV_OPTIONS))
+nav_cols = st.columns(len(NAV_OPTIONS))
 
-    for nav_col, option in zip(nav_cols, NAV_OPTIONS):
-        with nav_col:
-            is_active = st.session_state["current_page"] == option
-            if st.button(
-                option,
-                key=f"nav_{option}",
-                type="primary" if is_active else "tertiary",
-                width="stretch"
-            ):
-                st.session_state["current_page"] = option
-                st.rerun()
+for nav_col, option in zip(nav_cols, NAV_OPTIONS):
+    with nav_col:
+        is_active = st.session_state["current_page"] == option
+        if st.button(
+            option,
+            key=f"nav_{option}",
+            type="primary" if is_active else "tertiary",
+            width="stretch"
+        ):
+            st.session_state["current_page"] = option
+            st.rerun()
 
 page = st.session_state["current_page"]
 
